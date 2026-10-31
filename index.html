@@ -299,6 +299,14 @@ function fmtTime(t) {
   const h = +m[1], ap = h >= 12 ? "pm" : "am", h12 = ((h + 11) % 12) + 1;
   return m[2] === "00" ? `${h12}${ap}` : `${h12}:${m[2]}${ap}`;
 }
+/* Arrival defaults to 1 hour before kick-off unless an arrival time is given */
+function arrivalTime(m) {
+  if (m.arrival) return m.arrival;
+  const k = /^(\d{1,2}):(\d{2})$/.exec(String(m.kickOff || "").trim());
+  if (!k) return "";
+  const mins = (+k[1] * 60 + +k[2] - 60 + 1440) % 1440;
+  return String(Math.floor(mins / 60)).padStart(2, "0") + ":" + String(mins % 60).padStart(2, "0");
+}
 const empty = (title, msg) => `<div class="empty"><strong>${esc(title)}</strong>${esc(msg)}</div>`;
 const card = (title, body, extra = "") => `<div class="card"><div class="card-head"><span>${title}</span>${extra}</div>${body}</div>`;
 
@@ -331,7 +339,7 @@ function renderNext() {
       <div class="facts">
         <div class="fact wide"><div class="label">Date</div><div class="value">${tbc(esc(longDate(m.date)))}</div></div>
         <div class="fact"><div class="label">Kick-off</div><div class="value">${tbc(esc(fmtTime(m.kickOff)))}</div></div>
-        <div class="fact"><div class="label">Arrive by</div><div class="value">${tbc(esc(fmtTime(m.arrival)))}</div></div>
+        <div class="fact"><div class="label">Arrive by</div><div class="value">${tbc(esc(fmtTime(arrivalTime(m))))}</div></div>
         <div class="fact wide"><div class="label">Location</div>
           <div class="value text">${m.ground ? esc(m.ground) : `<span class="sub">Ground TBC</span>`}</div>
           ${m.address || m.postcode ? `<div class="sub">${esc([m.address, m.postcode].filter(Boolean).join(", "))}</div>` : ""}
