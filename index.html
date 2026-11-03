@@ -629,7 +629,7 @@ function renderNext() {
         </div>
       </div>`;
   }
-  if ((DATA.role === "supporters" || DATA.role === "manager") && m.preview) {
+  if (["players", "supporters", "manager"].includes(DATA.role) && m.preview) {
     html += sectionHead("Match preview") + String(m.preview).split(/\n\s*\n/).map((para, i) => `<p class="preview${i ? "" : " first"}">${esc(para)}</p>`).join("");
   }
   const squad = [...(DATA.squad || [])].filter(Boolean).sort(bySurname);
@@ -1338,7 +1338,7 @@ function siteChecks(s) {
     if ((s.squad || []).length) ok(`Squad picked (${s.squad.length} players)`);
     else if (daysAway <= 7) warn("Squad not announced yet", "Send Ollie's squad message when it's out.");
     else ok("Squad not needed yet", "The game is more than a week away.");
-    m.preview ? ok("Match preview written (supporters & manager)") : warn("No match preview yet", "Run an update and one will be written.");
+    m.preview ? ok("Match preview written (players, supporters & manager)") : warn("No match preview yet", "Run an update and one will be written.");
   }
   const last = [...(s.results || [])].sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0))[0];
   if (last) {
