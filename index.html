@@ -413,6 +413,12 @@
   .fxi.no svg { opacity: .6; }
   .fxi.maybe, .fxi.unknown { border-style: dashed; }
   .fx-key { margin: 2px 0 4px; }
+
+  /* Gold crown on Ludham's position when top of the league */
+  .lt-crown { position: absolute; left: -6px; top: -11px; width: 24px; height: 17px; color: #D6A532; transform: rotate(-14deg); filter: drop-shadow(0 1px 1px rgba(10,34,64,.35)); }
+  .lt-crown svg { display: block; width: 100%; height: 100%; }
+  .play .lt-crown { animation: crown-drop .7s cubic-bezier(.3,1.5,.5,1) both 1.15s; }
+  @keyframes crown-drop { 0% { opacity: 0; transform: translateY(-26px) rotate(-40deg); } 60% { opacity: 1; } 100% { opacity: 1; transform: rotate(-14deg); } }
 </style>
 </head>
 <body class="locked loading">
@@ -817,7 +823,9 @@ function renderTable() {
   const t = DATA.leagueTable || {}, rows = t.rows || [];
   const sign = n => (n > 0 ? "+" : "") + n;
   const anyNote = rows.some(r => r[8]);
-  const cells = r => `<span role="cell">${esc(r[0])}</span><span role="cell">${esc(r[1])}</span><span role="cell">${esc(r[2])}</span><span role="cell">${esc(r[3])}</span><span role="cell">${esc(r[4])}</span><span role="cell">${esc(r[5])}</span><span role="cell">${esc(sign(r[6]))}</span><span role="cell">${esc(r[7])}${r[8] ? `<sup>${esc(r[8])}</sup>` : ""}</span>`;
+  const isUs = r => String(r[1]).toLowerCase().startsWith(CLUB.toLowerCase());
+  const crowned = r => isUs(r) && +r[0] === 1;
+  const cells = r => `<span role="cell">${esc(r[0])}${crowned(r) ? `<i class="lt-crown" aria-hidden="true"><svg viewBox="0 0 20 14"><path d="M1 4l4.5 4L10 1l4.5 7L19 4l-2 9H3z" fill="currentColor" stroke="#8C6A12" stroke-width=".8" stroke-linejoin="round"/></svg></i><span class="sr">Top of the league</span>` : ""}</span><span role="cell">${esc(r[1])}</span><span role="cell">${esc(r[2])}</span><span role="cell">${esc(r[3])}</span><span role="cell">${esc(r[4])}</span><span role="cell">${esc(r[5])}</span><span role="cell">${esc(sign(r[6]))}</span><span role="cell">${esc(r[7])}${r[8] ? `<sup>${esc(r[8])}</sup>` : ""}</span>`;
   $("#table").innerHTML = `
     <h2 class="panel-title display">League Table</h2>
     <p class="panel-sub serif">NEN League, Division One${t.asOf ? ` — as of ${esc(fmt(t.asOf, { day: "numeric", month: "long", year: "numeric" }))}` : ""}</p>
