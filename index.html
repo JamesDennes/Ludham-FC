@@ -700,7 +700,8 @@ function tickCountdown() {
 
 /* ---------- 2. Fixtures & results ---------- */
 
-/* ---------- Away ground facilities (supporters only) ---------- */
+/* ---------- Away ground facilities (supporters and manager) ---------- */
+const GROUND_ROLES = ["supporters", "manager"];
 const ICON_WC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="4.5" r="1.8"/><path d="M5 9h4l-.5 6H9l-.5 6h-3L5 15h-.5L5 9z"/><circle cx="17" cy="4.5" r="1.8"/><path d="M15.5 9h3l2 7h-2l-.5 5h-2l-.5-5h-2l2-7z"/><path d="M12 3v18"/></svg>`;
 const ICON_CUP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h13v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6V9z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3c0 1.5 1.5 1.5 1.5 3M12 3c0 1.5 1.5 1.5 1.5 3"/></svg>`;
 const groundKey = n => String(n || "").replace(/\s*\(cup\)\s*$/i, "").trim().toLowerCase();
@@ -733,7 +734,7 @@ function groundTip(g) {
   return "";
 }
 function facilitiesBlock(m) {
-  if (DATA.role !== "supporters" || !isAway(m.homeAway)) return "";
+  if (!GROUND_ROLES.includes(DATA.role) || !isAway(m.homeAway)) return "";
   const g = groundInfo(m.opponent);
   if (!g) return "";
   const tip = groundTip(g);
@@ -741,7 +742,7 @@ function facilitiesBlock(m) {
   return `<div class="facil">${cell("Toilets", "toilets", ICON_WC)}${cell("Refreshments", "refreshments", ICON_CUP)}</div>${tip ? `<p class="ground-tip">${esc(tip)}</p>` : ""}`;
 }
 function fxIcons(f) {
-  if (DATA.role !== "supporters" || !isAway(f.homeAway)) return "";
+  if (!GROUND_ROLES.includes(DATA.role) || !isAway(f.homeAway)) return "";
   const g = groundInfo(f.opponent);
   if (!g) return "";
   const chip = (kind, icon, word) => { const st = facState(g[kind]); const txt = st === "no" ? `No ${word.toLowerCase()}` : st === "unknown" ? `${word}?` : st === "maybe" ? `${word} on request` : word;
@@ -772,7 +773,7 @@ function renderFixtures() {
     <h2 class="panel-title display">Fixtures &amp; Results</h2>
     <p class="panel-sub serif">All competitions, season 2026/27</p>
     ${sectionHead("Coming up")}
-    ${DATA.role === "supporters" && up.some(f => isAway(f.homeAway) && groundInfo(f.opponent)) ? `<p class="empty serif fx-key">Away games show whether the ground has toilets and drinks.</p>` : ""}
+    ${GROUND_ROLES.includes(DATA.role) && up.some(f => isAway(f.homeAway) && groundInfo(f.opponent)) ? `<p class="empty serif fx-key">Away games show whether the ground has toilets and drinks.</p>` : ""}
     ${up.length ? `<ul class="fx">${up.map(f => fxRow(f, false)).join("")}</ul>` : emptyLine("No fixtures listed yet.")}
     ${sectionHead("Results")}
     ${res.length ? `<p class="empty serif" style="margin:2px 0 4px">Tap a result for the match report.</p>` : ""}
