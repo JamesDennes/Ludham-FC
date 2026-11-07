@@ -114,6 +114,10 @@
   }
   .big-stamp::after { content: ""; position: absolute; inset: 5px; border: 2px solid currentColor; }
   .big-stamp.Drew, .big-stamp.Lost { color: var(--ink); }
+  .big-stamp.Abandoned, .big-stamp.Postponed { color: #B3412E; font-size: 60px; }
+  .match-head .stamp.Abandoned, .match-head .stamp.Postponed { color: #B3412E; border-color: #B3412E; }
+  .ft-report { margin-top: 18px; }
+  .ft .big-stamp { top: 215px; }
   .play .big-stamp { animation: big-stamp 2.6s cubic-bezier(.2,.9,.3,1) .6s both; }
   @keyframes big-stamp {
     0%   { opacity: 0; transform: translate(-50%, -50%) rotate(-24deg) scale(2.6); }
@@ -573,14 +577,17 @@ function recentResult() {
   if (!d) return null;
   const now = new Date();
   const toTue = (2 - d.getDay() + 7) % 7 || 7;
-  const until = new Date(d); until.setDate(d.getDate() + Math.min(toTue, 3));
+  const until = new Date(d); until.setDate(d.getDate() + Math.min(toTue, 3) + 1);   // shown until the end of Tuesday
   return now >= d && now < until ? last : null;
 }
 function fullTimeBlock() {
   const f = recentResult(); if (!f) return "";
-  const s = /^\s*(\d+)\s*[-–]\s*(\d+)\s*$/.exec(f.score || ""); if (!s) return "";
-  const us = +s[1], them = +s[2], r = us > them ? "Won" : us < them ? "Lost" : "Drew";
-  const rep = f.report || {};
+  const rep = f.report || {}, num = v => /^\s*(\d+)\s*[-–]\s*(\d+)\s*$/.exec(v || "");
+  const s = num(f.score), sc = s || num(rep.scoreAt);
+  const r = s ? (+s[1] > +s[2] ? "Won" : +s[1] < +s[2] ? "Lost" : "Drew")
+    : /^\s*a\s*[-–]\s*a\s*$/i.test(f.score || "") ? "Abandoned" : /^\s*p\s*[-–]\s*p\s*$/i.test(f.score || "") ? "Postponed" : "";
+  if (!r) return "";
+  const us = sc ? +sc[1] : "–", them = sc ? +sc[2] : "–";
   const line = (name, g, mine) => `<div class="sl ${mine ? "us" : ""}"><span class="nm">${esc(name)}</span><span class="gl">${g}</span></div>`;
   const rows = isAway(f.homeAway) ? line(f.opponent, them, false) + line(CLUB, us, true) : line(CLUB, us, true) + line(f.opponent, them, false);
   const bits = [
@@ -590,12 +597,13 @@ function fullTimeBlock() {
     <div class="ft">
       <div class="stamp-clip" aria-hidden="true"><div class="big-stamp ${r}">${r === "Drew" ? "DRAW" : r.toUpperCase()}</div></div>
       <div class="match-head">
-        <div class="date serif">Full time · ${esc(fmt(f.date, { weekday: "long", day: "numeric", month: "long" }))}</div>
-        <div class="stamp display" aria-label="${r}">${r.toUpperCase()}</div>
+        <div class="date serif">${s ? "Full time" : "Last match"} · ${esc(fmt(f.date, { weekday: "long", day: "numeric", month: "long" }))}</div>
+        <div class="stamp display ${r}" aria-label="${r}">${r.toUpperCase()}</div>
         <div class="scoreline">${rows}</div>
       </div>
       ${bits}
-      <a class="btn ft-btn" href="#match-${esc(f.date)}">MATCH REPORT
+      ${rep.writeup ? `<div class="ft-report">${String(rep.writeup).split(/\n\s*\n/).map((para, i) => `<p class="preview${i ? "" : " first"}${/^\s*\*/.test(para) ? " footnote" : ""}">${esc(para)}</p>`).join("")}</div>` : ""}
+      <a class="btn ft-btn" href="#match-${esc(f.date)}">FULL MATCH REPORT
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
     </div>`;
 }
