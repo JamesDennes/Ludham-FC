@@ -430,6 +430,20 @@
   .club-note img { width: 44px; height: 44px; border-radius: 50%; }
   .club-note p { margin: 0; font-family: "Source Serif 4", Georgia, serif; font-style: italic; font-size: 17px; line-height: 1.5; }
   .club-note .sig { margin-top: 6px; font-family: Inter, system-ui, sans-serif; font-style: normal; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+  /* Club announcement takeover ("Here we go!") - switched on by DATA.announcement */
+  .announce { position: relative; margin: 16px -20px 0; padding: 20px 20px 22px; background: var(--navy); color: var(--paper); overflow: hidden; border-top: 3px solid var(--ink); border-bottom: 1px solid var(--ink); }
+  .announce .kicker { font-size: 12px; font-weight: 700; letter-spacing: .18em; color: #C9D6E8; }
+  .announce .hwg { display: flex; align-items: center; gap: 12px; margin-top: 6px; font-family: Anton, Impact, sans-serif; font-size: clamp(48px, 15vw, 70px); line-height: .95; letter-spacing: .02em; }
+  .announce .tick { flex: none; width: 46px; height: 46px; border-radius: 50%; background: #D6A532; display: grid; place-items: center; }
+  .announce .tick svg { width: 28px; height: 28px; }
+  .announce h3 { margin: 14px 0 0; font-size: 22px; font-weight: 700; line-height: 1.25; }
+  .announce p { margin: 8px 0 0; font-family: "Source Serif 4", Georgia, serif; font-style: italic; font-size: 17px; line-height: 1.5; color: #E4EAF3; }
+  .announce a.btn { margin-top: 14px; background: var(--paper); color: var(--ink); }
+  .play .announce .hwg { animation: hwg-slam .7s cubic-bezier(.2,1.4,.4,1) both .25s; }
+  .play .announce .tick { animation: hwg-tick .5s cubic-bezier(.3,1.6,.5,1) both .8s; }
+  @keyframes hwg-slam { from { opacity: 0; transform: scale(1.8) rotate(-4deg); } to { opacity: 1; transform: none; } }
+  @keyframes hwg-tick { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: none; } }
 </style>
 </head>
 <body class="locked loading">
@@ -580,6 +594,27 @@ function recentResult() {
   const until = new Date(d); until.setDate(d.getDate() + Math.min(toTue, 3) + 1);   // shown until the end of Tuesday
   return now >= d && now < until ? last : null;
 }
+
+/* ---------- Club announcement takeover ("Here we go!") ---------- */
+function activeAnnouncement() {
+  const a = DATA.announcement;
+  if (!a || !a.title) return null;
+  const until = parseDate(a.until); if (!until) return null;
+  const end = new Date(until); end.setDate(end.getDate() + 1);   // shown to the end of the "until" day
+  return new Date() < end ? a : null;
+}
+const ICON_TICK = `<svg viewBox="0 0 24 24" fill="none" stroke="#0A2240" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+function announceBlock() {
+  const a = activeAnnouncement(); if (!a) return "";
+  return `<section class="announce" aria-label="Club announcement">
+    <div class="kicker">${esc(a.kicker || "CLUB ANNOUNCEMENT")}</div>
+    <div class="hwg"><span>${esc(a.headline || "HERE WE GO!")}</span><span class="tick">${ICON_TICK}</span></div>
+    <h3>${esc(a.title)}</h3>
+    ${a.body ? `<p>${esc(a.body)}</p>` : ""}
+    ${a.link ? `<a class="btn" href="${esc(a.link)}">${esc(a.linkText || "READ THE MATCH REPORT")}</a>` : ""}
+  </section>`;
+}
+
 function fullTimeBlock() {
   const f = recentResult(); if (!f) return "";
   const rep = f.report || {}, num = v => /^\s*(\d+)\s*[-–]\s*(\d+)\s*$/.exec(v || "");
@@ -676,6 +711,8 @@ function renderNext() {
     : emptyLine("To be announced on the WhatsApp group."));
   const ft = fullTimeBlock();
   if (ft) html = ft + `<div class="next-after">${sectionHead("Next match")}${html}</div>`;
+  const ann = announceBlock();
+  if (ann) html = ann + html;
   $("#next").innerHTML = html;
   tickCountdown();
 }
@@ -1020,6 +1057,7 @@ function renderManager() {
       <button type="button" class="btn" data-gfx="squad">SQUAD</button>
       <button type="button" class="btn" data-gfx="result">LAST RESULT</button>
       <button type="button" class="btn" data-gfx="report">MATCH REPORT</button>
+      ${activeAnnouncement() ? `<button type="button" class="btn" data-gfx="herewego">HERE WE GO!</button>` : ""}
       <button type="button" class="btn" data-gfx="fixtures">FIXTURES</button>
       <button type="button" class="btn" data-gfx="table">LEAGUE TABLE</button>
       <button type="button" class="btn" data-gfx="scorers">TOP SCORERS</button>
@@ -1179,6 +1217,26 @@ const gfx = {
     if (sc) { x.font = F.inter(700, 24); x.fillStyle = G.muted; spaced(x, "GOALS", GM, 1196, 4); x.font = F.inter(600, 36); x.fillStyle = G.ink; x.fillText(clip(x, sc, GW - GM * 2 - 140), GM + 140, 1198); }
     return c;
   },
+  herewego() {
+    const a = activeAnnouncement(); if (!a) return null;
+    const { c, x } = gfxFrame(a.headline || "HERE WE GO!", (a.kicker ? a.kicker.charAt(0) + a.kicker.slice(1).toLowerCase() : "Club announcement") + " · " + fmt(new Date().toISOString().slice(0, 10), { day: "numeric", month: "long" }));
+    // gold tick badge beside the headline
+    x.font = F.anton(118); const hw = Math.min(x.measureText(a.headline || "HERE WE GO!").width, GW - GM * 2 - 150);
+    const cx = GM + hw + 90, cy = 352;
+    x.fillStyle = "#D6A532"; x.beginPath(); x.arc(cx, cy, 56, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = G.ink; x.lineWidth = 14; x.lineCap = "round"; x.lineJoin = "round";
+    x.beginPath(); x.moveTo(cx - 26, cy + 2); x.lineTo(cx - 6, cy + 22); x.lineTo(cx + 28, cy - 18); x.stroke();
+    let y = 500; hline(x, y, 5);
+    x.font = F.anton(92); x.fillStyle = G.navy;
+    const tl = wrap(x, String(a.title).toUpperCase(), GW - GM * 2).slice(0, 3);
+    tl.forEach((l, i) => x.fillText(l, GM, y + 110 + i * 100)); y += 110 + (tl.length - 1) * 100 + 40;
+    hline(x, y, 2);
+    if (a.body) { x.font = F.serif(42); x.fillStyle = G.ink; const bl = wrap(x, a.body, GW - GM * 2).slice(0, 5); bl.forEach((l, i) => x.fillText(l, GM, y + 70 + i * 56)); y += 70 + bl.length * 56; }
+    if (a.scoreline) { const by = Math.max(y + 30, GH - 430); x.fillStyle = G.navy; x.fillRect(GM, by, GW - GM * 2, 170);
+      x.fillStyle = G.paper; fit(x, String(a.scoreline).toUpperCase(), F.anton, 104, GW - GM * 2 - 80, 50); x.textAlign = "center"; x.fillText(String(a.scoreline).toUpperCase(), GW / 2, by + 124); x.textAlign = "left"; }
+    x.font = F.anton(46); x.fillStyle = G.navy; spaced(x, "UP THE LUDHAM!", GM, GH - 120, 6);
+    return c;
+  },
   report() {
     const f = [...(DATA.results || [])].sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0))[0];
     if (!f) return null;
@@ -1303,7 +1361,7 @@ const GC_SECTIONS = {
   manager:    ["next", "fixtures", "match-report", "table", "stats", "fines", "manager"]
 };
 const GC_TAB_NAMES = { next: "Match", fixtures: "Fixtures", "match-report": "Match reports", table: "League table", stats: "Player stats", fines: "Fines", manager: "Manager tools" };
-const GC_GRAPHICS = ["matchday", "squad", "result", "report", "fixtures", "table", "scorers"];
+const GC_GRAPHICS = ["matchday", "squad", "result", "report", "herewego", "fixtures", "table", "scorers"];
 const isoDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 /* Live GoatCounter API (needs ADMIN.gcKey); falls back to the cached public counter */
 let GC_LIVE = false, GC_DAILY = null;
@@ -1396,7 +1454,7 @@ async function renderVisitors() {
         <div class="val">${v}</div></div>`).join("");
     };
     const tabRows = Object.entries(tabCounts).map(([k, v]) => [GC_TAB_NAMES[k] || k, v]).sort((a, b) => b[1] - a[1]);
-    const gfxRows = GC_GRAPHICS.map((g, i) => [g === "scorers" ? "Top scorers" : g === "result" ? "Last result" : g === "report" ? "Match report" : g === "table" ? "League table" : g[0].toUpperCase() + g.slice(1), gfxCounts[i]]).sort((a, b) => b[1] - a[1]);
+    const gfxRows = GC_GRAPHICS.map((g, i) => [g === "scorers" ? "Top scorers" : g === "result" ? "Last result" : g === "report" ? "Match report" : g === "herewego" ? "Here we go" : g === "table" ? "League table" : g[0].toUpperCase() + g.slice(1), gfxCounts[i]]).sort((a, b) => b[1] - a[1]);
     el.innerHTML = `
       <h2 class="panel-title display">Visitors</h2>
       <p class="panel-sub serif">${GC_LIVE ? "Live from GoatCounter" : "From GoatCounter · can be a few hours behind"} · counting since 2 November 2026</p>
@@ -1647,6 +1705,7 @@ function play(panel) {
   panel.classList.add("play");
   countUp(panel);
   if (panel.id === "next" && panel.querySelector(".big-stamp.Won")) setTimeout(winConfetti, 750);
+  if (panel.id === "next" && panel.querySelector(".announce") && (activeAnnouncement() || {}).confetti) setTimeout(winConfetti, 900);
 }
 
 /* ---------- tabs ---------- */
