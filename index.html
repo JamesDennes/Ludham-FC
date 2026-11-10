@@ -1232,8 +1232,8 @@ const gfx = {
     tl.forEach((l, i) => x.fillText(l, GM, y + 110 + i * 100)); y += 110 + (tl.length - 1) * 100 + 40;
     hline(x, y, 2);
     if (a.body) { x.font = F.serif(42); x.fillStyle = G.ink; const bl = wrap(x, a.body, GW - GM * 2).slice(0, 5); bl.forEach((l, i) => x.fillText(l, GM, y + 70 + i * 56)); y += 70 + bl.length * 56; }
-    if (a.scoreline) { const by = Math.max(y + 30, GH - 430); x.fillStyle = G.navy; x.fillRect(GM, by, GW - GM * 2, 170);
-      x.fillStyle = G.paper; fit(x, String(a.scoreline).toUpperCase(), F.anton, 104, GW - GM * 2 - 80, 50); x.textAlign = "center"; x.fillText(String(a.scoreline).toUpperCase(), GW / 2, by + 124); x.textAlign = "left"; }
+    if (a.scoreline) { const by = Math.min(Math.max(y + 40, GH - 470), GH - 390); x.fillStyle = G.navy; x.fillRect(GM, by, GW - GM * 2, 160);
+      x.fillStyle = G.paper; fit(x, String(a.scoreline).toUpperCase(), F.anton, 104, GW - GM * 2 - 80, 50); x.textAlign = "center"; x.fillText(String(a.scoreline).toUpperCase(), GW / 2, by + 118); x.textAlign = "left"; }
     x.font = F.anton(46); x.fillStyle = G.navy; spaced(x, "UP THE LUDHAM!", GM, GH - 120, 6);
     return c;
   },
