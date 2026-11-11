@@ -1218,76 +1218,23 @@ const gfx = {
     return c;
   },
   herewego() {
-    // Breaking-news "HERE WE GO!" card in the style of a transfer-news scoop
     const a = activeAnnouncement(); if (!a) return null;
-    const c = document.createElement("canvas"); c.width = GW; c.height = GH;
-    const x = c.getContext("2d"); x.textBaseline = "alphabetic";
-    const RED = "#E0262B", NIGHT = "#071528", GOLD = "#D6A532", WHITE = "#FFFFFF";
-    // background: deep navy with a soft glow and diagonal speed lines
-    x.fillStyle = NIGHT; x.fillRect(0, 0, GW, GH);
-    const glow = x.createRadialGradient(GW * .75, 260, 40, GW * .75, 260, 900);
-    glow.addColorStop(0, "rgba(31,79,163,.55)"); glow.addColorStop(1, "rgba(31,79,163,0)");
-    x.fillStyle = glow; x.fillRect(0, 0, GW, GH);
-    x.save(); x.globalAlpha = .06; x.strokeStyle = WHITE; x.lineWidth = 2;
-    for (let i = -GH; i < GW; i += 46) { x.beginPath(); x.moveTo(i, GH); x.lineTo(i + GH * .6, 0); x.stroke(); }
-    x.restore();
-    const siren = (cx, cy, r) => {   // red siren light, drawn so it never depends on emoji fonts
-      x.save();
-      x.strokeStyle = RED; x.lineWidth = r * .14; x.lineCap = "round";
-      [[-1.1, -.55], [-1.25, .05], [1.1, -.55], [1.25, .05], [0, -1.35]].forEach(([dx, dy]) => {
-        const len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
-        x.beginPath(); x.moveTo(cx + ux * r * 1.05, cy + uy * r * 1.05 - r * .1); x.lineTo(cx + ux * r * 1.45, cy + uy * r * 1.45 - r * .1); x.stroke(); });
-      x.fillStyle = RED; x.beginPath(); x.moveTo(cx - r * .72, cy + r * .5); x.lineTo(cx - r * .72, cy - r * .05);
-      x.arc(cx, cy - r * .05, r * .72, Math.PI, 0); x.lineTo(cx + r * .72, cy + r * .5); x.closePath(); x.fill();
-      x.fillStyle = "rgba(255,255,255,.55)"; x.beginPath(); x.ellipse(cx - r * .28, cy - r * .2, r * .14, r * .26, -.4, 0, Math.PI * 2); x.fill();
-      x.fillStyle = "#B9BEC8"; x.fillRect(cx - r * .95, cy + r * .5, r * 1.9, r * .32);
-      x.restore();
-    };
-    const tick = (cx, cy, r) => {
-      x.fillStyle = "#2BA84A"; x.beginPath(); x.roundRect ? x.roundRect(cx - r, cy - r, r * 2, r * 2, r * .3) : x.rect(cx - r, cy - r, r * 2, r * 2); x.fill();
-      x.strokeStyle = WHITE; x.lineWidth = r * .28; x.lineCap = "round"; x.lineJoin = "round";
-      x.beginPath(); x.moveTo(cx - r * .5, cy + r * .02); x.lineTo(cx - r * .12, cy + r * .42); x.lineTo(cx + r * .55, cy - r * .4); x.stroke();
-    };
-    // top bar: crest + club, BREAKING pill
-    const crest = $(".mast-row img");
-    try { x.save(); x.beginPath(); x.arc(GM + 44, 98, 44, 0, Math.PI * 2); x.clip(); x.drawImage(crest, GM, 54, 88, 88); x.restore(); } catch (e) {}
-    x.font = F.anton(46); x.fillStyle = WHITE; spaced(x, "LUDHAM F.C.", GM + 108, 116, 6);
-    x.font = F.inter(800, 26); const bt = "BREAKING", bw = x.measureText(bt).width + 4 * 7 + 96;
-    x.fillStyle = RED; x.beginPath(); x.roundRect ? x.roundRect(GW - GM - bw, 70, bw, 58, 29) : x.rect(GW - GM - bw, 70, bw, 58); x.fill();
-    x.fillStyle = WHITE; x.beginPath(); x.arc(GW - GM - bw + 34, 99, 9, 0, Math.PI * 2); x.fill();
-    spaced(x, bt, GW - GM - bw + 58, 109, 4);
-    // the headline
-    siren(GM + 62, 300, 52); siren(GW - GM - 62, 300, 52);
-    x.fillStyle = WHITE; const head = (a.headline || "HERE WE GO!").toUpperCase();
-    fit(x, head, F.anton, 168, GW - GM * 2 - 300, 80); x.textAlign = "center"; x.fillText(head, GW / 2, 366); x.textAlign = "left";
-    x.fillStyle = RED; x.fillRect(GW / 2 - 150, 398, 300, 10);
-    // the scoop: tweet-style lines
-    let y = 500;
-    x.font = F.inter(800, 54); x.fillStyle = WHITE;
-    const tl = wrap(x, String(a.title), GW - GM * 2 - 90).slice(0, 3);
-    tl.forEach((l, i) => x.fillText(l, GM, y + i * 66));
-    const lw = x.measureText(tl[tl.length - 1]).width; tick(Math.min(GM + lw + 52, GW - GM - 30), y - 18 + (tl.length - 1) * 66, 28);
-    y += (tl.length - 1) * 66 + 50;
-    if (a.body) {
-      x.font = F.inter(500, 40); x.fillStyle = "#C9D4E6";
-      const bl = wrap(x, a.body, GW - GM * 2).slice(0, 5);
-      bl.forEach((l, i) => x.fillText(l, GM, y + 40 + i * 54)); y += 40 + (bl.length - 1) * 54 + 20;
-    }
-    // scoreline panel
-    if (a.scoreline) {
-      const by = Math.min(Math.max(y + 60, GH - 470), GH - 400);
-      x.fillStyle = WHITE; x.fillRect(GM, by, GW - GM * 2, 170);
-      x.fillStyle = RED; x.fillRect(GM, by, 16, 170);
-      const sl = String(a.scoreline).toUpperCase(); x.fillStyle = NIGHT;
-      fit(x, sl, F.anton, 104, GW - GM * 2 - 100, 50); x.textAlign = "center"; x.fillText(sl, GW / 2 + 8, by + 122); x.textAlign = "left";
-      x.save(); x.translate(GW - GM - 130, by - 4); x.rotate(-8 * Math.PI / 180); x.font = F.anton(40); { const w = x.measureText("CONFIRMED").width + 52; x.fillStyle = NIGHT; x.fillRect(-w / 2, -30, w, 60); } x.restore();
-      stampBox(x, "CONFIRMED", GW - GM - 130, by - 4, 40, -8, GOLD);
-    }
-    // sign-off
-    x.font = F.inter(800, 40); x.fillStyle = WHITE; x.fillText("Up the Ludham!", GM, GH - 150);
-    x.font = F.inter(600, 28); x.fillStyle = "#8FA3C2";
-    x.fillText(fmt(new Date().toISOString().slice(0, 10), { weekday: "long", day: "numeric", month: "long" }) + "  ·  " + (a.kicker ? a.kicker.charAt(0) + a.kicker.slice(1).toLowerCase() : "Club announcement"), GM, GH - 104);
-    x.fillStyle = RED; x.fillRect(0, GH - 24, GW, 24);
+    const { c, x } = gfxFrame(a.headline || "HERE WE GO!", (a.kicker ? a.kicker.charAt(0) + a.kicker.slice(1).toLowerCase() : "Club announcement") + " · " + fmt(new Date().toISOString().slice(0, 10), { day: "numeric", month: "long" }));
+    // gold tick badge beside the headline
+    x.font = F.anton(118); const hw = Math.min(x.measureText(a.headline || "HERE WE GO!").width, GW - GM * 2 - 150);
+    const cx = GM + hw + 90, cy = 352;
+    x.fillStyle = "#D6A532"; x.beginPath(); x.arc(cx, cy, 56, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = G.ink; x.lineWidth = 14; x.lineCap = "round"; x.lineJoin = "round";
+    x.beginPath(); x.moveTo(cx - 26, cy + 2); x.lineTo(cx - 6, cy + 22); x.lineTo(cx + 28, cy - 18); x.stroke();
+    let y = 500; hline(x, y, 5);
+    x.font = F.anton(92); x.fillStyle = G.navy;
+    const tl = wrap(x, String(a.title).toUpperCase(), GW - GM * 2).slice(0, 3);
+    tl.forEach((l, i) => x.fillText(l, GM, y + 110 + i * 100)); y += 110 + (tl.length - 1) * 100 + 40;
+    hline(x, y, 2);
+    if (a.body) { x.font = F.serif(42); x.fillStyle = G.ink; const bl = wrap(x, a.body, GW - GM * 2).slice(0, 5); bl.forEach((l, i) => x.fillText(l, GM, y + 70 + i * 56)); y += 70 + bl.length * 56; }
+    if (a.scoreline) { const by = Math.min(Math.max(y + 40, GH - 470), GH - 390); x.fillStyle = G.navy; x.fillRect(GM, by, GW - GM * 2, 160);
+      x.fillStyle = G.paper; fit(x, String(a.scoreline).toUpperCase(), F.anton, 104, GW - GM * 2 - 80, 50); x.textAlign = "center"; x.fillText(String(a.scoreline).toUpperCase(), GW / 2, by + 118); x.textAlign = "left"; }
+    x.font = F.anton(46); x.fillStyle = G.navy; spaced(x, "UP THE LUDHAM!", GM, GH - 120, 6);
     return c;
   },
   report() {
