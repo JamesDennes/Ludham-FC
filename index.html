@@ -412,6 +412,11 @@
   .cal-row .btn { width: 100%; justify-content: center; }
   .cal-row .alt { display: block; margin-top: 8px; text-align: center; font-size: 14px; color: var(--muted); }
   .cal-row .alt a { color: var(--ink); font-weight: 600; }
+  .fx-cal { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .fx-cal button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 2px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer; }
+  .fx-cal button svg { width: 22px; height: 22px; }
+  .fx-cal a { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--muted); }
+  .cal-row.all { padding: 4px 0 6px; }
   .facil { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--ink); }
   .facil .fact + .fact { border-left: 1px solid var(--ink); padding-left: 16px; }
   .facil .fv { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 17px; font-weight: 600; line-height: 1.25; }
@@ -797,42 +802,67 @@ function groundTip(g) {
 }
 
 /* Add to calendar: an .ics file (iPhone, Android, Outlook) or a Google Calendar link */
+function koOf(m) {
+  const d = parseDate(m.date), k = /^(\d{1,2}):(\d{2})$/.exec(String(m.kickOff || "").trim());
+  if (!d || !k) return null;
+  d.setHours(+k[1], +k[2], 0, 0);
+  return d;
+}
 function calEvent(m) {
-  const ko = kickOffDate(), day = parseDate(m.date); if (!day || !m.opponent) return null;
+  const ko = koOf(m), day = parseDate(m.date); if (!day || !m.opponent) return null;
   const away = isAway(m.homeAway);
   const title = (away ? `${m.opponent} v ${CLUB}` : `${CLUB} v ${m.opponent}`).replace(/ \(Cup\)/, "") + (/\(Cup\)/.test(m.opponent) ? " (Cup)" : "");
   const ymd = d => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
   const stamp = d => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}00`;
   const where = [m.ground, m.address, m.postcode].filter(Boolean).join(", ");
   const arrive = fmtTime(arrivalTime(m));
-  const notes = `NEN League · ${away ? "Away" : "Home"}${arrive ? ` · Arrive by ${arrive}` : ""}\n${location.href.split("#")[0]}`;
+  const notes = `${/\(Cup\)/.test(m.opponent) ? "Cup" : "NEN League"} · ${away ? "Away" : "Home"}${arrive ? ` · Arrive by ${arrive}` : ""}${ko ? "" : " · Kick-off time to be confirmed"}\n${location.href.split("#")[0]}`;
   // no kick-off time yet: an all-day event on the match day
   const allDay = !ko, next = new Date(day); next.setDate(next.getDate() + 1);
   return { title, allDay, start: allDay ? ymd(day) : stamp(ko), end: allDay ? ymd(next) : stamp(new Date(ko.getTime() + 2 * 3600e3)), where, notes, file: title.toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".ics" };
 }
-function calendarRow(m) {
-  if (!["players", "manager"].includes(DATA.role)) return "";
-  const e = calEvent(m); if (!e) return "";
-  const g = "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(e.title) +
+const ICON_CAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/></svg>`;
+const CAL_ROLES = ["players", "manager"];
+// a fixture with the best details known: the Match tab's details for the next game, the home venue for other home games
+function fixtureMatch(f) {
+  const n = DATA.nextMatch || {};
+  if (n.date && n.date === f.date) return n;
+  const home = !isAway(f.homeAway) && !isAway(n.homeAway) && n.ground ? { ground: n.ground, address: n.address, postcode: n.postcode } : {};
+  return { date: f.date, opponent: f.opponent, homeAway: f.homeAway, ...home };
+}
+function gcalLink(e) {
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(e.title) +
     "&dates=" + e.start + "/" + e.end + (e.allDay ? "" : "&ctz=Europe/London") + "&location=" + encodeURIComponent(e.where) + "&details=" + encodeURIComponent(e.notes);
-  const ICON_CAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/></svg>`;
+}
+function fxCal(f) {
+  if (!CAL_ROLES.includes(DATA.role)) return "";
+  const e = calEvent(fixtureMatch(f)); if (!e) return "";
+  return `<div class="fx-cal"><button type="button" data-ics="${esc(f.date)}" aria-label="Add ${esc(e.title)} to your calendar">${ICON_CAL}</button><a href="${gcalLink(e)}" target="_blank" rel="noopener" aria-label="Add ${esc(e.title)} to Google Calendar">Google</a></div>`;
+}
+function calendarRow(m) {
+  if (!CAL_ROLES.includes(DATA.role)) return "";
+  const e = calEvent(m); if (!e) return "";
+  const g = gcalLink(e);
   return `<div class="cal-row"><button class="btn" type="button" data-ics>${ICON_CAL}ADD TO CALENDAR</button><span class="alt">Use Google Calendar? <a href="${g}" target="_blank" rel="noopener">Add it there</a></span></div>`;
 }
-function downloadIcs() {
-  const e = calEvent(DATA.nextMatch || {}); if (!e) return;
+function downloadIcs(which) {
+  const ups = [...(DATA.fixtures || [])].sort((a, b) => (parseDate(a.date) || 0) - (parseDate(b.date) || 0));
+  const evs = (which === "all" ? ups.map(fixtureMatch) : which ? ups.filter(f => f.date === which).map(fixtureMatch) : [DATA.nextMatch || {}])
+    .map(calEvent).filter(Boolean);
+  if (!evs.length) return;
   const esc2 = t => String(t).replace(/\\/g, "\\\\").replace(/([,;])/g, "\\$1").replace(/\n/g, "\\n");
-  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Ludham FC//Matchday//EN", "CALSCALE:GREGORIAN", "BEGIN:VEVENT",
-    `UID:${e.start}-ludham@jamesdennes.github.io`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").slice(0, 15)}Z`,
+  const now = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+  const vevent = e => ["BEGIN:VEVENT", `UID:${e.start.slice(0, 8)}-ludham@jamesdennes.github.io`, `DTSTAMP:${now}`,
     ...(e.allDay ? [`DTSTART;VALUE=DATE:${e.start}`, `DTEND;VALUE=DATE:${e.end}`] : [`DTSTART;TZID=Europe/London:${e.start}`, `DTEND;TZID=Europe/London:${e.end}`]),
     `SUMMARY:${esc2(e.title)}`, `LOCATION:${esc2(e.where)}`, `DESCRIPTION:${esc2(e.notes)}`,
-    "BEGIN:VALARM", e.allDay ? "TRIGGER:-PT15H" : "TRIGGER:-PT2H", "ACTION:DISPLAY", `DESCRIPTION:${esc2(e.title)}`, "END:VALARM",
-    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+    "BEGIN:VALARM", e.allDay ? "TRIGGER:-PT15H" : "TRIGGER:-PT2H", "ACTION:DISPLAY", `DESCRIPTION:${esc2(e.title)}`, "END:VALARM", "END:VEVENT"];
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Ludham FC//Matchday//EN", "CALSCALE:GREGORIAN", ...evs.flatMap(vevent), "END:VCALENDAR"].join("\r\n");
   const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
-  const a = document.createElement("a"); a.href = url; a.download = e.file; document.body.appendChild(a); a.click(); a.remove();
+  const a = document.createElement("a"); a.href = url; a.download = which === "all" ? "ludham-fixtures.ics" : evs[0].file; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
-  if (typeof track === "function") try { track("calendar", "Added the match to a calendar", true); } catch (_) {}
+  if (typeof track === "function") try { track("calendar", which === "all" ? "Added all fixtures to a calendar" : "Added the match to a calendar", true); } catch (_) {}
 }
-document.addEventListener("click", ev => { if (ev.target.closest("[data-ics]")) downloadIcs(); });
+document.addEventListener("click", ev => { const b = ev.target.closest("[data-ics]"); if (b) downloadIcs(b.getAttribute("data-ics")); });
 
 
 function facilitiesBlock(m) {
@@ -858,7 +888,7 @@ function fxRow(f, result) {
     ? `<div class="fx-date"><b>${d.getDate()}</b><span>${d.toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}<br>${d.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase()}</span></div>`
     : `<div class="fx-date"><span>TBC</span></div>`;
   const ha = haWord(f.homeAway);
-  let right = "";
+  let right = result ? "" : fxCal(f);
   if (result) {
     const s = /^\s*(\d+)\s*[-–]\s*(\d+)\s*$/.exec(f.score || "");
     const r = s ? (+s[1] > +s[2] ? "W" : +s[1] < +s[2] ? "L" : "D") : "";
@@ -877,6 +907,7 @@ function renderFixtures() {
     ${sectionHead("Coming up")}
     ${GROUND_ROLES.includes(DATA.role) && up.some(f => f.homeAway && groundInfo(isAway(f.homeAway) ? f.opponent : CLUB)) ? `<p class="empty serif fx-key">Each game shows whether the ground has toilets and drinks.</p>` : ""}
     ${up.length ? `<ul class="fx">${up.map(f => fxRow(f, false)).join("")}</ul>` : emptyLine("No fixtures listed yet.")}
+    ${CAL_ROLES.includes(DATA.role) && up.length > 1 ? `<div class="cal-row all"><button class="btn" type="button" data-ics="all">${ICON_CAL}ADD ALL TO CALENDAR</button><span class="alt">Games without a confirmed kick-off time go in as all-day events. Tap the calendar next to a game to add just that one.</span></div>` : ""}
     ${sectionHead("Results")}
     ${res.length ? `<p class="empty serif" style="margin:2px 0 4px">Tap a result for the match report.</p>` : ""}
     ${res.length ? `<ul class="fx">${res.map(f => fxRow(f, true)).join("")}</ul>` : emptyLine("No results yet.")}`;
