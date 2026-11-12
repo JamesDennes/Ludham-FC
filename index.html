@@ -990,22 +990,12 @@ function fineSummary() {
   return { list, by, total, owed };
 }
 function renderFines() {
-  const F = DATA.fines || {}, rules = F.rules || [], S = fineSummary();
-  const people = Object.entries(S.by).sort((a, b) => b[1].total - a[1].total || bySurname(a[0], b[0]));
-  const log = [...S.list].sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0));
+  const rules = (DATA.fines || {}).rules || [];
   $("#fines").innerHTML = `
     <h2 class="panel-title display">Fines</h2>
     <p class="panel-sub serif">Season 2026/27 — players only</p>
-    <div class="tiles">
-      <div class="tile dark"><div class="caps">Fines</div><b>${S.list.length}</b></div>
-      <div class="tile"><div class="caps">Total</div><b>${money(S.total)}</b></div>
-      <div class="tile"><div class="caps">Unpaid</div><b>${money(S.owed)}</b></div>
-    </div>
-    ${sectionHead("The rules")}
-    ${rules.length ? rules.map(r => `<div class="fine-row"><span class="name">${esc(r.name)}</span><span></span><span class="amt">${money(r.amount)}</span></div>`).join("") : emptyLine("No fines set yet.")}
-    ${sectionHead("Who owes what")}
-    ${people.length ? people.map(([n, v]) => `<div class="fine-row"><span class="name">${esc(n)}<small>${v.count} fine${v.count === 1 ? "" : "s"}</small></span>${v.owed ? `<span class="paid no">${money(v.owed)} UNPAID</span>` : `<span class="paid yes">PAID</span>`}<span class="amt">${money(v.total)}</span></div>`).join("") : emptyLine("No fines yet — keep it that way.")}
-    ${log.length ? sectionHead("Every fine") + log.map(f => `<div class="fine-row"><span class="name">${esc(f.name)}<small>${esc(f.reason || "")}${f.date ? " · " + esc(fmt(f.date, { day: "numeric", month: "short" })) : ""}</small></span><span class="paid ${f.paid ? "yes" : "no"}">${f.paid ? "PAID" : "UNPAID"}</span><span class="amt">${money(f.amount)}</span></div>`).join("") : ""}`;
+    ${sectionHead("The fines")}
+    ${rules.length ? rules.map(r => `<div class="fine-row"><span class="name">${esc(r.name)}</span><span></span><span class="amt">${money(r.amount)}</span></div>`).join("") : emptyLine("No fines set.")}`;
 }
 
 /* ---------- 6. Manager: squad picker + messages ---------- */
