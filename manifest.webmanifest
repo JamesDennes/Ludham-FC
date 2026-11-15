@@ -1,16 +1,29 @@
 {
+  "id": "./",
   "name": "Ludham FC Matchday",
   "short_name": "Ludham FC",
-  "description": "Ludham FC matchday programme – next match, squad, fixtures, results, league table and player stats.",
+  "description": "The Ludham FC matchday programme: next match, squad, fixtures, results, league table and player stats. Up the Ludham!",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0A2240",
+  "background_color": "#F3EFE9",
   "theme_color": "#0A2240",
+  "categories": ["sports"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Next match", "url": "./#next", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Fixtures & results", "short_name": "Fixtures", "url": "./#fixtures", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "League table", "short_name": "Table", "url": "./#table", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Player stats", "short_name": "Stats", "url": "./#stats", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ],
+  "screenshots": [
+    { "src": "screenshots/fixtures.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Fixtures and results" },
+    { "src": "screenshots/table.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "League table" },
+    { "src": "screenshots/lock.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Members-only programme" }
   ]
 }
