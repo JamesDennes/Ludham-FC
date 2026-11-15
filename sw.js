@@ -1,6 +1,6 @@
 // Ludham FC app: always try the network first so updates show straight away,
 // and fall back to the last saved copy when there's no signal.
-const CACHE = 'ludham-v2';
+const CACHE = 'ludham-v3';
 const SHELL = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

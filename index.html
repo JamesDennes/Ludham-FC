@@ -464,6 +464,31 @@
   .play .announce .tick { animation: hwg-tick .5s cubic-bezier(.3,1.6,.5,1) both .8s; }
   @keyframes hwg-slam { from { opacity: 0; transform: scale(1.8) rotate(-4deg); } to { opacity: 1; transform: none; } }
   @keyframes hwg-tick { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: none; } }
+
+  /* ---------- Get the app card ---------- */
+  .getapp {
+    position: fixed; left: 12px; right: 12px; z-index: 40; max-width: 536px; margin: 0 auto;
+    bottom: calc(var(--nav-h) + var(--safe) + 12px);
+    background: var(--paper); color: var(--ink); border: 2px solid var(--ink);
+    box-shadow: 0 10px 30px rgba(10,34,64,.28); padding: 16px 16px 12px;
+    transform: translateY(calc(100% + 120px)); transition: transform .45s cubic-bezier(.2,.8,.2,1);
+  }
+  .locked .getapp { position: relative; left: auto; right: auto; bottom: auto; margin: 8px 20px 28px; transform: none; transition: none; }
+  @media (min-width: 600px) { .locked .getapp { margin: 8px auto 28px; } }
+  .getapp.open { transform: none; }
+  .getapp[hidden] { display: none; }
+  .getapp-head { display: flex; gap: 12px; align-items: center; padding-right: 28px; }
+  .getapp-head img { width: 48px; height: 48px; border-radius: 11px; flex: none; }
+  .getapp h3 { margin: 0; font-size: 22px; line-height: 1.05; text-transform: uppercase; }
+  .getapp-head p { margin: 2px 0 0; font-size: 14px; line-height: 1.35; color: var(--muted); }
+  .getapp ol { margin: 12px 0 4px; padding-left: 22px; font-size: 15px; line-height: 1.4; }
+  .getapp li { margin: 6px 0; }
+  .getapp li svg { width: 18px; height: 18px; vertical-align: -3px; margin: 0 2px; }
+  .getapp .note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+  .getapp .btn { width: 100%; justify-content: center; margin-top: 12px; min-height: 50px; }
+  .getapp .later { display: block; margin: 4px auto 0; color: var(--muted); font-size: 14px; }
+  .getapp-x { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border: 0; background: none; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; }
+  .standalone #getAppLink { display: none; }
 </style>
 </head>
 <body class="locked loading">
@@ -521,6 +546,7 @@
       <div><div class="caps">The Chairman</div><div class="who">JOHN BUTLER</div></div>
       <div><div class="caps">Assistant</div><div class="who">TERRY SMITH</div></div>
     </div>
+    <button class="linkbtn" type="button" id="getAppLink">Add the app to your home screen</button><br>
     <button class="linkbtn" type="button" id="switchPw">Use a different password</button>
   </footer>
 </main>
@@ -532,6 +558,16 @@
     <p>On an iPhone you can also press and hold the picture to save it.</p>
     <button type="button" class="linkbtn" id="gfxClose">Close</button>
   </div>
+</div>
+
+<div class="getapp" id="getApp" hidden role="dialog" aria-labelledby="getAppTitle">
+  <button type="button" class="getapp-x" id="getAppX" aria-label="Close">&times;</button>
+  <div class="getapp-head">
+    <img src="icons/icon-192.png" alt="">
+    <div><h3 class="display" id="getAppTitle">Get the Ludham FC app</h3>
+    <p>Put it on your home screen. It opens in one tap and still works with poor signal at the ground.</p></div>
+  </div>
+  <div id="getAppBody"></div>
 </div>
 
 <nav class="tabs" aria-label="Sections">
@@ -1933,6 +1969,72 @@ const loaderDone = (async () => {
 </script>
 <script>
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+
+/* ---------- "Get the app" card: one-tap install on Android, step-by-step on iPhone ---------- */
+(() => {
+  const LATER_KEY = 'ludhamfc-app-later', card = $('#getApp'), body = $('#getAppBody');
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const android = /Android/.test(ua);
+  const inApp = /FBAN|FBAV|Instagram|Snapchat|Line\//.test(ua);
+  const wanted = location.hash === '#install';
+  if (wanted) history.replaceState(null, '', location.pathname + location.search);
+  if (standalone) {
+    document.body.classList.add('standalone');
+    let seen = true; try { seen = sessionStorage.getItem('ludhamfc-app-open'); sessionStorage.setItem('ludhamfc-app-open', '1'); } catch (e) {}
+    if (!seen) { track('opened-app', 'Opened from home screen', true); }
+    return;
+  }
+  let prompt = null;
+  const share = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+  const dots = '<b aria-label="menu">&#8942;</b>';
+  const later = '<button type="button" class="linkbtn later" data-later>Not now</button>';
+  function render() {
+    if (prompt) {
+      body.innerHTML = '<button type="button" class="btn" id="getAppGo">INSTALL THE APP</button>' + later;
+      $('#getAppGo').addEventListener('click', async () => {
+        prompt.prompt();
+        const { outcome } = await prompt.userChoice.catch(() => ({}));
+        prompt = null;
+        if (outcome === 'accepted') close(false); else render();
+      });
+    } else if (inApp) {
+      body.innerHTML = `<ol><li>Tap the ${dots} or ${share} menu.</li><li>Choose <b>Open in ${ios ? 'Safari' : 'Chrome'}</b> (or Open in browser).</li><li>Come back to this message there to add the app.</li></ol>` + later;
+    } else if (ios) {
+      body.innerHTML = `<ol><li>Tap the Share button ${share}. In Safari it's at the bottom, or under <b>&bull;&bull;&bull;</b>.</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>.</li></ol>`
+        + '<p class="note">Using Chrome? The Share button is at the top, by the address bar.</p>'
+        + '<button type="button" class="btn" data-later>GOT IT</button>';
+    } else if (android) {
+      body.innerHTML = `<ol><li>Tap the ${dots} menu at the top right.</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Tap <b>Install</b> (or <b>Add</b>).</li></ol>` + '<button type="button" class="btn" data-later>GOT IT</button>';
+    } else {
+      body.innerHTML = '<p class="note">Open this page on your phone to add it to your home screen. On a computer, look for the install icon at the right of the address bar.</p>' + later;
+    }
+    body.querySelectorAll('[data-later]').forEach(b => b.addEventListener('click', () => close(true)));
+  }
+  function open() {
+    render(); card.hidden = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add('open')));
+  }
+  function close(remember) {
+    card.classList.remove('open');
+    setTimeout(() => { card.hidden = true; }, 450);
+    if (remember) try { localStorage.setItem(LATER_KEY, Date.now()); } catch (e) {}
+  }
+  $('#getAppX').addEventListener('click', () => close(true));
+  $('#getAppLink').addEventListener('click', open);
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); prompt = e; if (!card.hidden) render(); });
+  addEventListener('appinstalled', () => { close(false); track('installed-app', 'Installed the app', true); });
+  let snoozed = false;
+  try { snoozed = Date.now() - Number(localStorage.getItem(LATER_KEY) || 0) < 14 * 864e5; } catch (e) {}
+  const unlocked = () => new Promise(r => {
+    if (!document.body.classList.contains('locked')) return r();
+    const mo = new MutationObserver(() => { if (!document.body.classList.contains('locked')) { mo.disconnect(); r(); } });
+    mo.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  });
+  if (wanted) loaderDone.then(() => setTimeout(open, 300));
+  else if ((ios || android) && !snoozed) loaderDone.then(unlocked).then(() => setTimeout(open, 1800));
+})();
 </script>
 </body>
 </html>
