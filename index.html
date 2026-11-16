@@ -1613,6 +1613,12 @@ async function renderVisitors() {
       const n = await gcCount(`/${r}/${t2}`); tabCounts[t2] = (tabCounts[t2] || 0) + n;
     })));
     const gfxCounts = await Promise.all(GC_GRAPHICS.map(g => gcCount(`graphic-${g}`)));
+    const appGroups = ["players", "supporters", "manager"];
+    const [alertsOn, alertsOff, alertsOn7, appOpens, appOpens7, installs, groupOn, groupOff] = await Promise.all([
+      gcCount("alerts-on"), gcCount("alerts-off"), gcCount("alerts-on", W), gcCount("opened-app"), gcCount("opened-app", W), gcCount("installed-app"),
+      Promise.all(appGroups.map(g => gcCount(`alerts-on-${g}`))), Promise.all(appGroups.map(g => gcCount(`alerts-off-${g}`)))]);
+    const groupNet = appGroups.map((g, i) => Math.max(0, groupOn[i] - groupOff[i]));
+    const noGroup = Math.max(0, (alertsOn - alertsOff) - groupNet.reduce((s, n) => s + n, 0));
     const days = [...Array(28)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - 27 + i); return d; });
     const daily = GC_DAILY ? days.map(d => GC_DAILY[isoDay(d)] || 0)
       : GC_LIVE ? await (async () => { const out = []; for (const d of days) out.push(await gcCount("TOTAL", isoDay(d), isoDay(d)).catch(() => 0)); return out; })()
@@ -1648,6 +1654,17 @@ async function renderVisitors() {
       <div class="fine-row"><span class="name">Opened the site<small>${opened7} in the last 7 days</small></span><span></span><span class="amt">${opened}</span></div>
       ${roles.map((r, i) => `<div class="fine-row"><span class="name">Unlocked as ${r}<small>${unlocks[i][1]} in the last 7 days</small></span><span></span><span class="amt">${unlocks[i][0]}</span></div>`).join("")}
       <div class="fine-row"><span class="name">Stopped at the password screen<small>roughly: opened minus unlocked</small></span><span></span><span class="amt">${stopped}</span></div>
+      ${sectionHead("App & alerts")}
+      <div class="tiles">
+        <div class="tile dark"><div class="caps">Alerts on</div><b>${Math.max(0, alertsOn - alertsOff)}</b></div>
+        <div class="tile"><div class="caps">New this week</div><b>${alertsOn7}</b></div>
+        <div class="tile"><div class="caps">Opens this week</div><b>${appOpens7}</b></div>
+      </div>
+      ${appGroups.map((g, i) => `<div class="fine-row"><span class="name">Alerts on: ${g}</span><span></span><span class="amt">${groupNet[i]}</span></div>`).join("")}
+      ${noGroup ? `<div class="fine-row"><span class="name">Alerts on: group not recorded<small>turned on before groups were counted (16 Nov)</small></span><span></span><span class="amt">${noGroup}</span></div>` : ""}
+      <div class="fine-row"><span class="name">Opened from the home screen<small>${appOpens7} in the last 7 days</small></span><span></span><span class="amt">${appOpens}</span></div>
+      <div class="fine-row"><span class="name">Installed on Android<small>iPhones don't report installs</small></span><span></span><span class="amt">${installs}</span></div>
+      <p class="note">Counted since 16 November. Your own phone isn't included. For the exact list of phones, see <a href="https://dashboard.onesignal.com" target="_blank" rel="noopener">OneSignal</a> → Audience, or ask Claude.</p>
       ${sectionHead("Visits by day")}
       <p class="note" style="margin-top:2px">Last 14 days · weekends in blue</p>
       ${dayChart}
@@ -2218,7 +2235,10 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
   $('#alertsX').addEventListener('click', () => close(true));
   link.addEventListener('click', () => {
     if (!OS) return;
-    if (isOn()) { OS.User.PushSubscription.optOut(); track('alerts-off', 'Turned match alerts off', true); refresh(); }
+    if (isOn()) {
+      const g = (DATA && DATA.role) || 'players';
+      OS.User.PushSubscription.optOut(); track('alerts-off', 'Turned match alerts off', true); track(`alerts-off-${g}`, `Turned match alerts off (${g})`, true); refresh();
+    }
     else open();
   });
   OneSignalDeferred.push(async OneSignal => {
@@ -2236,7 +2256,10 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
       refresh();
       // tag on every opt-in signal: on some phones the first subscription arrives with previous.optedIn already true
       if (e.current.optedIn) tagMe(OneSignal);
-      if (e.current.optedIn && !e.previous.optedIn) track('alerts-on', 'Turned match alerts on', true);
+      if (e.current.optedIn && !e.previous.optedIn) {
+        const g = (DATA && DATA.role) || 'players';
+        track('alerts-on', 'Turned match alerts on', true); track(`alerts-on-${g}`, `Turned match alerts on (${g})`, true);
+      }
     });
     await unlocked();
     if (isOn()) tagMe(OneSignal);   // keep the group up to date (e.g. after switching password)
