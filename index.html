@@ -1635,6 +1635,19 @@ async function renderVisitors() {
       Promise.all(appGroups.map(g => gcCount(`alerts-on-${g}`))), Promise.all(appGroups.map(g => gcCount(`alerts-off-${g}`)))]);
     const groupNet = appGroups.map((g, i) => Math.max(0, groupOn[i] - groupOff[i]));
     const noGroup = Math.max(0, (alertsOn - alertsOff) - groupNet.reduce((s, n) => s + n, 0));
+    let alertNames = null;   // needs the live GoatCounter connection to list them
+    if (GC_LIVE) {
+      try {
+        const j = await gcApi("stats/hits", { start: gcTime("2026-11-16"), end: gcTime(T, true), limit: 100, filter: "alerts-name" });
+        const on = {}, off = {};
+        (j.hits || []).forEach(x => {
+          const pth = String(x.path || "").replace(/^\//, ""), n = gcNum(x.count ?? x.count_unique);
+          if (pth.startsWith("alerts-nameoff-")) off[pth.slice(15)] = (off[pth.slice(15)] || 0) + n;
+          else if (pth.startsWith("alerts-name-")) on[pth.slice(12)] = (on[pth.slice(12)] || 0) + n;
+        });
+        alertNames = Object.keys(on).filter(k => on[k] - (off[k] || 0) > 0).sort((a, b) => a.localeCompare(b));
+      } catch (e) { alertNames = null; }
+    }
     const days = [...Array(28)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - 27 + i); return d; });
     const daily = GC_DAILY ? days.map(d => GC_DAILY[isoDay(d)] || 0)
       : GC_LIVE ? await (async () => { const out = []; for (const d of days) out.push(await gcCount("TOTAL", isoDay(d), isoDay(d)).catch(() => 0)); return out; })()
@@ -1678,6 +1691,7 @@ async function renderVisitors() {
       </div>
       ${appGroups.map((g, i) => `<div class="fine-row"><span class="name">Alerts on: ${g === "admin" ? "you" : g}</span><span></span><span class="amt">${groupNet[i]}</span></div>`).join("")}
       ${noGroup ? `<div class="fine-row"><span class="name">Alerts on: group not recorded<small>counted before groups were added</small></span><span></span><span class="amt">${noGroup}</span></div>` : ""}
+      <div class="fine-row"><span class="name">Players who've said who they are<small>${alertNames === null ? "needs the live GoatCounter connection" : alertNames.length ? esc(alertNames.join(", ")) : "no names yet"}</small></span><span></span><span class="amt">${alertNames === null ? "–" : alertNames.length}</span></div>
       <div class="fine-row"><span class="name">Opened from the home screen<small>${appOpens7} in the last 7 days</small></span><span></span><span class="amt">${appOpens}</span></div>
       <div class="fine-row"><span class="name">Installed on Android<small>iPhones don't report installs</small></span><span></span><span class="amt">${installs}</span></div>
       <p class="note">Counted since 16 November. Phones that turned alerts on earlier are counted the next time they open the app. For the exact list of phones, see <a href="https://dashboard.onesignal.com" target="_blank" rel="noopener">OneSignal</a> → Audience, or ask Claude.</p>
@@ -2237,6 +2251,7 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
     const name = $('#whoamiName').value.replace(/\s+/g, ' ').trim().slice(0, 40);
     if (!name) return $('#whoamiName').focus();
     try { OS.User.addTags({ name }); } catch (err) {}
+    countAlways(`alerts-name-${name}`, `Alerts on: ${name}`);
     try { localStorage.setItem(NAME_KEY, name); } catch (err) {}
     if (document.activeElement) document.activeElement.blur();
     closeWho();
@@ -2254,6 +2269,8 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
       try { localStorage.setItem(COUNTED_KEY, g); } catch (e) {}
     } else if (!isOn() && counted) {
       countAlways('alerts-off', 'Turned match alerts off'); countAlways(`alerts-off-${counted}`, `Turned match alerts off (${counted})`);
+      let nm = ''; try { nm = localStorage.getItem(NAME_KEY) || ''; } catch (e) {}
+      if (nm) countAlways(`alerts-nameoff-${nm}`, `Alerts off: ${nm}`);
       try { localStorage.removeItem(COUNTED_KEY); } catch (e) {}
     }
   }
