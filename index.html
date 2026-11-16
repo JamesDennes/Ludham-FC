@@ -2155,6 +2155,8 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
       welcomeNotification: { title: 'Ludham FC', message: "You're in! Match alerts are on. Up the Ludham! ⚽" }
     });
     OS = OneSignal; refresh();
+    // phones only re-check the alerts worker about once a day; ask for the latest each time the app opens
+    try { navigator.serviceWorker.getRegistration('/Ludham-FC/push/onesignal/').then(r => r && r.update()).catch(() => {}); } catch (e) {}
     OneSignal.User.PushSubscription.addEventListener('change', e => {
       refresh();
       if (e.current.optedIn && !e.previous.optedIn) { tagMe(OneSignal); track('alerts-on', 'Turned match alerts on', true); }
