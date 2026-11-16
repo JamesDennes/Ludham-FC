@@ -504,6 +504,7 @@
   .getapp .later { display: block; margin: 4px auto 0; color: var(--muted); font-size: 14px; }
   .getapp-x { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border: 0; background: none; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; }
   .standalone #getAppLink { display: none; }
+  #whoamiName { width: 100%; margin-top: 12px; padding: 12px; border: 2px solid var(--ink); border-radius: 0; background: var(--paper); color: var(--ink); font: 16px Inter, sans-serif; }
 
   /* ---------- App feel ---------- */
   button, a, .tab, label { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -633,6 +634,21 @@
 
 <div class="ptr" id="ptr" aria-hidden="true"><img src="icons/icon-192.png" alt=""></div>
 <div class="ptr-msg" id="ptrMsg" role="status"></div>
+
+<div class="getapp" id="whoami" hidden role="dialog" aria-labelledby="whoamiTitle">
+  <button type="button" class="getapp-x" id="whoamiX" aria-label="Close">&times;</button>
+  <div class="getapp-head">
+    <img src="icons/icon-192.png" alt="">
+    <div><h3 class="display" id="whoamiTitle">Who are you?</h3>
+    <p>Optional. It lets the club know who's getting the alerts.</p></div>
+  </div>
+  <form id="whoamiForm" autocomplete="off">
+    <label for="whoamiName" class="sr">Your name</label>
+    <input id="whoamiName" type="text" maxlength="40" placeholder="Your name" autocapitalize="words" enterkeyhint="done">
+    <button type="submit" class="btn">SAVE</button>
+    <button type="button" class="linkbtn later" id="whoamiSkip">Skip</button>
+  </form>
+</div>
 
 <nav class="tabs" aria-label="Sections">
   <div class="tablist" role="tablist">
@@ -2207,6 +2223,28 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
   // count each phone once while its alerts are on, for the admin Visits tab (James's phone included)
   const COUNTED_KEY = 'ludhamfc-alerts-counted';
   const countAlways = (path, title) => { const was = window.__ludhamAdmin; window.__ludhamAdmin = false; track(path, title, true); window.__ludhamAdmin = was; };
+  // players can optionally say who they are (free text, saved as a OneSignal tag); asked once
+  const NAME_KEY = 'ludhamfc-alert-name', who = $('#whoami');
+  const askedName = () => { try { return localStorage.getItem(NAME_KEY) !== null; } catch (e) { return true; } };
+  const closeWho = () => { who.classList.remove('open'); setTimeout(() => { who.hidden = true; }, 450); };
+  function askName() {
+    if (!OS || !isOn() || !DATA || DATA.role !== 'players' || askedName() || !card.hidden || !who.hidden) return;
+    who.hidden = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => who.classList.add('open')));
+  }
+  $('#whoamiForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('#whoamiName').value.replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!name) return $('#whoamiName').focus();
+    try { OS.User.addTags({ name }); } catch (err) {}
+    try { localStorage.setItem(NAME_KEY, name); } catch (err) {}
+    if (document.activeElement) document.activeElement.blur();
+    closeWho();
+  });
+  const skipName = () => { try { localStorage.setItem(NAME_KEY, ''); } catch (e) {} closeWho(); };
+  $('#whoamiSkip').addEventListener('click', skipName);
+  $('#whoamiX').addEventListener('click', skipName);
+
   function noteAlerts() {
     if (!DATA) return;
     let counted = null; try { counted = localStorage.getItem(COUNTED_KEY); } catch (e) {}
@@ -2244,7 +2282,7 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
   }
   async function turnOn() {
     try { await OS.User.PushSubscription.optIn(); } catch (e) {}
-    if (isOn()) { tagMe(OS); close(false); } else render();
+    if (isOn()) { tagMe(OS); close(false); setTimeout(askName, 900); } else render();
     refresh();
   }
   $('#alertsX').addEventListener('click', () => close(true));
@@ -2273,6 +2311,7 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
     await unlocked();
     if (isOn()) tagMe(OneSignal);   // keep the group up to date (e.g. after switching password)
     noteAlerts();
+    setTimeout(askName, 2000);
     let snoozed = false;
     try { snoozed = Date.now() - Number(localStorage.getItem(LATER_KEY) || 0) < 14 * 864e5; } catch (e) {}
     // offer alerts once the app is on the home screen
