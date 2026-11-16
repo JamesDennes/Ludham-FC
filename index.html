@@ -977,7 +977,7 @@ function downloadIcs(which) {
   const vevent = e => ["BEGIN:VEVENT", `UID:${e.start.slice(0, 8)}-ludham@jamesdennes.github.io`, `DTSTAMP:${now}`,
     ...(e.allDay ? [`DTSTART;VALUE=DATE:${e.start}`, `DTEND;VALUE=DATE:${e.end}`] : [`DTSTART;TZID=Europe/London:${e.start}`, `DTEND;TZID=Europe/London:${e.end}`]),
     `SUMMARY:${esc2(e.title)}`, `LOCATION:${esc2(e.where)}`, `DESCRIPTION:${esc2(e.notes)}`,
-    "BEGIN:VALARM", e.allDay ? "TRIGGER:-PT15H" : "TRIGGER:-PT2H", "ACTION:DISPLAY", `DESCRIPTION:${esc2(e.title)}`, "END:VALARM", "END:VEVENT"];
+    "END:VEVENT"];
   const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Ludham FC//Matchday//EN", "CALSCALE:GREGORIAN", ...evs.flatMap(vevent), "END:VCALENDAR"].join("\r\n");
   const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
   const a = document.createElement("a"); a.href = url; a.download = which === "all" ? "ludham-fixtures.ics" : evs[0].file; document.body.appendChild(a); a.click(); a.remove();
