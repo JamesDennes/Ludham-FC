@@ -2212,7 +2212,7 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
   }
   async function turnOn() {
     try { await OS.User.PushSubscription.optIn(); } catch (e) {}
-    if (isOn()) close(false); else render();
+    if (isOn()) { tagMe(OS); close(false); } else render();
     refresh();
   }
   $('#alertsX').addEventListener('click', () => close(true));
@@ -2234,7 +2234,9 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
     try { navigator.serviceWorker.getRegistration('/Ludham-FC/push/onesignal/').then(r => r && r.update()).catch(() => {}); } catch (e) {}
     OneSignal.User.PushSubscription.addEventListener('change', e => {
       refresh();
-      if (e.current.optedIn && !e.previous.optedIn) { tagMe(OneSignal); track('alerts-on', 'Turned match alerts on', true); }
+      // tag on every opt-in signal: on some phones the first subscription arrives with previous.optedIn already true
+      if (e.current.optedIn) tagMe(OneSignal);
+      if (e.current.optedIn && !e.previous.optedIn) track('alerts-on', 'Turned match alerts on', true);
     });
     await unlocked();
     if (isOn()) tagMe(OneSignal);   // keep the group up to date (e.g. after switching password)
