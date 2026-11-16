@@ -586,7 +586,7 @@
   <section id="visitors" role="tabpanel" aria-labelledby="tab-visitors"></section>
   <section id="check" role="tabpanel" aria-labelledby="tab-check"></section>
   <section id="history" role="tabpanel" aria-labelledby="tab-history"></section>
-  <section id="alerts" role="tabpanel" aria-labelledby="tab-alerts"></section>
+  <section id="signups" role="tabpanel" aria-labelledby="tab-signups"></section>
   <section id="access" role="tabpanel" aria-labelledby="tab-access"></section>
 
   <footer>
@@ -1606,7 +1606,7 @@ async function gcCount(path, start, end) {
 }
 let GC_READY = Promise.resolve();
 async function renderAlerts(fresh) {
-  const el = $("#alerts");
+  const el = $("#signups");
   el.innerHTML = `<h2 class="panel-title display">Alerts</h2><p class="panel-sub serif">Loading the numbers…</p>`;
   if (fresh) for (const k in gcApiCache) delete gcApiCache[k];
   await GC_READY;
@@ -1914,9 +1914,9 @@ function play(panel) {
 
 /* ---------- tabs ---------- */
 let TABS = ["next", "fixtures", "table", "stats"];
-const TAB_LABELS = { next: "MATCH", fixtures: "FIXTURES", table: "TABLE", stats: "STATS", fines: "FINES", manager: "MANAGER", visitors: "VISITS", check: "CHECK", history: "HISTORY", alerts: "ALERTS", access: "ACCESS" };
+const TAB_LABELS = { next: "MATCH", fixtures: "FIXTURES", table: "TABLE", stats: "STATS", fines: "FINES", manager: "MANAGER", visitors: "VISITS", check: "CHECK", history: "HISTORY", signups: "ALERTS", access: "ACCESS" };
 function buildNav() {
-  TABS = DATA.role === "admin" ? ["visitors", "check", "history", "alerts", "access"] : ["next", "fixtures", "table", "stats"];
+  TABS = DATA.role === "admin" ? ["visitors", "check", "history", "signups", "access"] : ["next", "fixtures", "table", "stats"];
   if (DATA.fines) TABS.push("fines");
   if (DATA.role === "manager") TABS.push("manager");
   const list = $(".tablist");
@@ -2256,12 +2256,13 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
     link.hidden = !(OS && OS.Notifications.isPushSupported());
     link.textContent = isOn() ? 'Turn off match alerts' : 'Turn on match alerts';
   }
-  function render() {
+  function render(failed) {
     if (blocked()) {
       body.innerHTML = '<p class="note">Alerts are blocked on this phone. To allow them, open your phone\'s <b>Settings</b>, find <b>Ludham FC</b> (or your browser) and turn <b>Notifications</b> on.</p>'
         + '<button type="button" class="btn" data-later>OK</button>';
     } else {
-      body.innerHTML = '<button type="button" class="btn" id="alertsGo">TURN ON ALERTS</button><button type="button" class="linkbtn later" data-later>Not now</button>';
+      body.innerHTML = (failed ? '<p class="note">That didn\'t work this time. Make sure you opened Ludham FC from its <b>home screen icon</b> (not Safari), then try again. Still stuck? Delete the icon, add it to the home screen again, and turn alerts on from the new icon.</p>' : '')
+        + '<button type="button" class="btn" id="alertsGo">' + (failed ? 'TRY AGAIN' : 'TURN ON ALERTS') + '</button><button type="button" class="linkbtn later" data-later>Not now</button>';
       $('#alertsGo').addEventListener('click', turnOn);
     }
     body.querySelectorAll('[data-later]').forEach(b => b.addEventListener('click', () => close(true)));
@@ -2276,8 +2277,15 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
     if (remember) try { localStorage.setItem(LATER_KEY, Date.now()); } catch (e) {}
   }
   async function turnOn() {
-    try { await OS.User.PushSubscription.optIn(); } catch (e) {}
-    if (isOn()) { tagMe(OS); close(false); setTimeout(askName, 900); } else render();
+    const go = $('#alertsGo');
+    if (go) { go.disabled = true; go.textContent = 'TURNING ON…'; }
+    // ask iOS straight away, inside the tap: some iPhones ignore a permission request that comes after other work
+    let asked = null;
+    try { if (typeof Notification !== 'undefined' && Notification.permission === 'default') asked = Notification.requestPermission(); } catch (e) {}
+    try { if (asked) await asked; } catch (e) {}
+    try { await Promise.race([OS.User.PushSubscription.optIn(), wait(8000)]); } catch (e) {}
+    if (!isOn()) await wait(1500);   // the subscription can take a moment to register
+    if (isOn()) { tagMe(OS); close(false); setTimeout(askName, 900); } else render(true);
     refresh();
   }
   $('#alertsX').addEventListener('click', () => close(true));
