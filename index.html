@@ -277,7 +277,9 @@
   .msg .btn { width: 100%; justify-content: center; margin-top: 8px; }
   .msg .btn.done { background: var(--navy); }
   .linkbtn { appearance: none; border: 0; background: none; padding: 8px 0; color: var(--navy); font: 600 15px Inter, sans-serif; text-decoration: underline; cursor: pointer; }
-  footer .linkbtn { margin-top: 14px; font-size: 14px; color: var(--muted); }
+  footer .foot-links { display: flex; flex-direction: column; align-items: center; margin-top: 12px; }
+  footer .linkbtn { font-size: 14px; color: var(--muted); }
+  footer .linkbtn[hidden] { display: none; }
 
   /* Manager graphics */
   .gfx-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
@@ -566,9 +568,11 @@
       <div><div class="caps">The Chairman</div><div class="who">JOHN BUTLER</div></div>
       <div><div class="caps">Assistant</div><div class="who">TERRY SMITH</div></div>
     </div>
-    <button class="linkbtn" type="button" id="alertsLink" hidden>Turn on match alerts</button><br>
-    <button class="linkbtn" type="button" id="getAppLink">Add the app to your home screen</button><br>
-    <button class="linkbtn" type="button" id="switchPw">Use a different password</button>
+    <div class="foot-links">
+      <button class="linkbtn" type="button" id="alertsLink" hidden>Turn on match alerts</button>
+      <button class="linkbtn" type="button" id="getAppLink">Add the app to your home screen</button>
+      <button class="linkbtn" type="button" id="switchPw">Use a different password</button>
+    </div>
   </footer>
 </main>
 
