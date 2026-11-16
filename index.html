@@ -586,7 +586,7 @@
   <section id="visitors" role="tabpanel" aria-labelledby="tab-visitors"></section>
   <section id="check" role="tabpanel" aria-labelledby="tab-check"></section>
   <section id="history" role="tabpanel" aria-labelledby="tab-history"></section>
-  <section id="email" role="tabpanel" aria-labelledby="tab-email"></section>
+  <section id="alerts" role="tabpanel" aria-labelledby="tab-alerts"></section>
   <section id="access" role="tabpanel" aria-labelledby="tab-access"></section>
 
   <footer>
@@ -1604,31 +1604,15 @@ async function gcCount(path, start, end) {
   const j = await r.json();
   return parseInt(String(j.count || "0").replace(/[^0-9]/g, ""), 10) || 0;
 }
-async function renderVisitors() {
-  const el = $("#visitors");
-  el.innerHTML = `<h2 class="panel-title display">Visitors</h2><p class="panel-sub serif">Loading the numbers…</p>`;
+let GC_READY = Promise.resolve();
+async function renderAlerts(fresh) {
+  const el = $("#alerts");
+  el.innerHTML = `<h2 class="panel-title display">Alerts</h2><p class="panel-sub serif">Loading the numbers…</p>`;
+  if (fresh) for (const k in gcApiCache) delete gcApiCache[k];
+  await GC_READY;
   const today = new Date(), week = new Date(); week.setDate(today.getDate() - 6);
   const T = isoDay(today), W = isoDay(week);
-  for (const k in gcApiCache) delete gcApiCache[k];
-  GC_LIVE = false; GC_DAILY = null;
-  if (ADMIN && ADMIN.gcKey) {
-    try {
-      const d0 = new Date(); d0.setDate(d0.getDate() - 27);
-      await gcLiveCount("TOTAL");
-      GC_LIVE = true;
-      GC_DAILY = await gcLiveDaily(isoDay(d0), T).catch(() => null);
-    } catch (e) { GC_LIVE = false; }
-  }
   try {
-    const [total, total7, totalToday, opened, opened7] = await Promise.all([
-      gcCount("TOTAL"), gcCount("TOTAL", W), gcCount("TOTAL", T), gcCount("/"), gcCount("/", W)]);
-    const roles = Object.keys(GC_SECTIONS);
-    const unlocks = await Promise.all(roles.map(r => Promise.all([gcCount(`unlocked-${r}`), gcCount(`unlocked-${r}`, W)])));
-    const tabCounts = {};
-    await Promise.all(roles.flatMap(r => GC_SECTIONS[r].map(async t2 => {
-      const n = await gcCount(`/${r}/${t2}`); tabCounts[t2] = (tabCounts[t2] || 0) + n;
-    })));
-    const gfxCounts = await Promise.all(GC_GRAPHICS.map(g => gcCount(`graphic-${g}`)));
     const appGroups = ["players", "supporters", "manager", "admin"];
     const [alertsOn, alertsOff, alertsOn7, appOpens, appOpens7, installs, groupOn, groupOff] = await Promise.all([
       gcCount("alerts-on"), gcCount("alerts-off"), gcCount("alerts-on", W), gcCount("opened-app"), gcCount("opened-app", W), gcCount("installed-app"),
@@ -1648,6 +1632,64 @@ async function renderVisitors() {
         alertNames = Object.keys(on).filter(k => on[k] - (off[k] || 0) > 0).sort((a, b) => a.localeCompare(b));
       } catch (e) { alertNames = null; }
     }
+    const groupName = g => g === "admin" ? "You" : g[0].toUpperCase() + g.slice(1);
+    el.innerHTML = `
+      <h2 class="panel-title display">Alerts</h2>
+      <p class="panel-sub serif">Who's getting match alerts on their phone · counted since 16 November</p>
+      <div class="tiles">
+        <div class="tile dark"><div class="caps">Alerts on</div><b>${Math.max(0, alertsOn - alertsOff)}</b></div>
+        <div class="tile"><div class="caps">New this week</div><b>${alertsOn7}</b></div>
+        <div class="tile"><div class="caps">Opens this week</div><b>${appOpens7}</b></div>
+      </div>
+      ${sectionHead("By group")}
+      ${appGroups.map((g, i) => `<div class="fine-row"><span class="name">${groupName(g)}</span><span></span><span class="amt">${groupNet[i]}</span></div>`).join("")}
+      ${noGroup ? `<div class="fine-row"><span class="name">Group not recorded<small>counted before groups were added</small></span><span></span><span class="amt">${noGroup}</span></div>` : ""}
+      ${sectionHead("Players' names")}
+      ${alertNames === null ? emptyLine("Needs the live GoatCounter connection, which didn't work this time.")
+        : alertNames.length ? alertNames.map(n => `<div class="fine-row"><span class="name">${esc(n)}</span><span></span><span class="amt"></span></div>`).join("")
+        : emptyLine("No players have given their name yet.")}
+      ${sectionHead("The app")}
+      <div class="fine-row"><span class="name">Opened from the home screen<small>${appOpens7} in the last 7 days</small></span><span></span><span class="amt">${appOpens}</span></div>
+      <div class="fine-row"><span class="name">Installed on Android<small>iPhones don't report installs</small></span><span></span><span class="amt">${installs}</span></div>
+      <p class="note">Phones that turned alerts on before 16 November are counted the next time they open the app. For the exact list of phones, see <a href="https://dashboard.onesignal.com" target="_blank" rel="noopener">OneSignal</a> → Audience, or ask Claude.</p>
+      <button type="button" class="btn" id="alRefresh" style="width:100%;justify-content:center;margin-top:22px">REFRESH</button>`;
+    $("#alRefresh").addEventListener("click", () => renderAlerts(true));
+    if (el.classList.contains("active")) play(el);
+  } catch (e) {
+    el.innerHTML = `<h2 class="panel-title display">Alerts</h2>
+      <p class="panel-sub serif">Couldn't read the numbers from GoatCounter.</p>
+      <button type="button" class="btn" id="alRefresh" style="width:100%;justify-content:center;margin-top:16px">TRY AGAIN</button>`;
+    $("#alRefresh").addEventListener("click", () => renderAlerts(true));
+  }
+}
+async function renderVisitors() {
+  const el = $("#visitors");
+  el.innerHTML = `<h2 class="panel-title display">Visitors</h2><p class="panel-sub serif">Loading the numbers…</p>`;
+  const today = new Date(), week = new Date(); week.setDate(today.getDate() - 6);
+  const T = isoDay(today), W = isoDay(week);
+  for (const k in gcApiCache) delete gcApiCache[k];
+  GC_LIVE = false; GC_DAILY = null;
+  GC_READY = (async () => {
+    if (ADMIN && ADMIN.gcKey) {
+      try {
+        const d0 = new Date(); d0.setDate(d0.getDate() - 27);
+        await gcLiveCount("TOTAL");
+        GC_LIVE = true;
+        GC_DAILY = await gcLiveDaily(isoDay(d0), T).catch(() => null);
+      } catch (e) { GC_LIVE = false; }
+    }
+  })();
+  await GC_READY;
+  try {
+    const [total, total7, totalToday, opened, opened7] = await Promise.all([
+      gcCount("TOTAL"), gcCount("TOTAL", W), gcCount("TOTAL", T), gcCount("/"), gcCount("/", W)]);
+    const roles = Object.keys(GC_SECTIONS);
+    const unlocks = await Promise.all(roles.map(r => Promise.all([gcCount(`unlocked-${r}`), gcCount(`unlocked-${r}`, W)])));
+    const tabCounts = {};
+    await Promise.all(roles.flatMap(r => GC_SECTIONS[r].map(async t2 => {
+      const n = await gcCount(`/${r}/${t2}`); tabCounts[t2] = (tabCounts[t2] || 0) + n;
+    })));
+    const gfxCounts = await Promise.all(GC_GRAPHICS.map(g => gcCount(`graphic-${g}`)));
     const days = [...Array(28)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - 27 + i); return d; });
     const daily = GC_DAILY ? days.map(d => GC_DAILY[isoDay(d)] || 0)
       : GC_LIVE ? await (async () => { const out = []; for (const d of days) out.push(await gcCount("TOTAL", isoDay(d), isoDay(d)).catch(() => 0)); return out; })()
@@ -1683,18 +1725,6 @@ async function renderVisitors() {
       <div class="fine-row"><span class="name">Opened the site<small>${opened7} in the last 7 days</small></span><span></span><span class="amt">${opened}</span></div>
       ${roles.map((r, i) => `<div class="fine-row"><span class="name">Unlocked as ${r}<small>${unlocks[i][1]} in the last 7 days</small></span><span></span><span class="amt">${unlocks[i][0]}</span></div>`).join("")}
       <div class="fine-row"><span class="name">Stopped at the password screen<small>roughly: opened minus unlocked</small></span><span></span><span class="amt">${stopped}</span></div>
-      ${sectionHead("App & alerts")}
-      <div class="tiles">
-        <div class="tile dark"><div class="caps">Alerts on</div><b>${Math.max(0, alertsOn - alertsOff)}</b></div>
-        <div class="tile"><div class="caps">New this week</div><b>${alertsOn7}</b></div>
-        <div class="tile"><div class="caps">Opens this week</div><b>${appOpens7}</b></div>
-      </div>
-      ${appGroups.map((g, i) => `<div class="fine-row"><span class="name">Alerts on: ${g === "admin" ? "you" : g}</span><span></span><span class="amt">${groupNet[i]}</span></div>`).join("")}
-      ${noGroup ? `<div class="fine-row"><span class="name">Alerts on: group not recorded<small>counted before groups were added</small></span><span></span><span class="amt">${noGroup}</span></div>` : ""}
-      <div class="fine-row"><span class="name">Players who've said who they are<small>${alertNames === null ? "needs the live GoatCounter connection" : alertNames.length ? esc(alertNames.join(", ")) : "no names yet"}</small></span><span></span><span class="amt">${alertNames === null ? "–" : alertNames.length}</span></div>
-      <div class="fine-row"><span class="name">Opened from the home screen<small>${appOpens7} in the last 7 days</small></span><span></span><span class="amt">${appOpens}</span></div>
-      <div class="fine-row"><span class="name">Installed on Android<small>iPhones don't report installs</small></span><span></span><span class="amt">${installs}</span></div>
-      <p class="note">Counted since 16 November. Phones that turned alerts on earlier are counted the next time they open the app. For the exact list of phones, see <a href="https://dashboard.onesignal.com" target="_blank" rel="noopener">OneSignal</a> → Audience, or ask Claude.</p>
       ${sectionHead("Visits by day")}
       <p class="note" style="margin-top:2px">Last 14 days · weekends in blue</p>
       ${dayChart}
@@ -1802,58 +1832,6 @@ async function renderHistory() {
   }
   $("#histRefresh").addEventListener("click", renderHistory);
 }
-function renderEmailBuilder() {
-  const s = ADMIN.site || {}, m = s.nextMatch || {};
-  const last = [...(s.results || [])].sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0))[0];
-  const names = [...new Set([...Object.keys(s.appearances || {}), ...Object.keys(s.allTimeApps || {})])].sort(bySurname);
-  const gameOpts = [m.opponent ? `${m.opponent} (${haWord(m.homeAway) || "?"}) ${m.date ? fmt(m.date, { day: "numeric", month: "short" }) : ""}`.trim() : "",
-    last ? `${last.opponent} (${haWord(last.homeAway) || "?"}) ${fmt(last.date, { day: "numeric", month: "short" })}` : ""].filter(Boolean);
-  $("#email").innerHTML = `
-    <h2 class="panel-title display">Update email</h2>
-    <p class="panel-sub serif">Fill in what you know – leave the rest blank</p>
-    <datalist id="playerNames">${names.map(n => `<option value="${esc(n)}">`).join("")}</datalist>
-    <datalist id="gameNames">${gameOpts.map(g => `<option value="${esc(g)}">`).join("")}</datalist>
-    <div class="field"><label class="caps" for="em-game">Which game</label><input id="em-game" list="gameNames" value="${esc(gameOpts[0] || "")}"></div>
-    <div class="field"><span class="caps" style="display:block;margin-bottom:5px">Score</span>
-      <div class="score-in"><span>Ludham</span><input id="em-us" inputmode="numeric" aria-label="Ludham goals"><span>–</span><input id="em-them" inputmode="numeric" aria-label="Opposition goals"><span id="em-opp">${esc(m.opponent || "Them")}</span></div></div>
-    <div class="field"><label class="caps" for="em-goals">Goals (one per line, e.g. Olly Black x2)</label><textarea id="em-goals"></textarea></div>
-    <div class="field"><label class="caps" for="em-assists">Assists (one per line)</label><textarea id="em-assists"></textarea></div>
-    <div class="field"><label class="caps" for="em-motm">Man of the Match</label><input id="em-motm" list="playerNames"></div>
-    <div class="field"><label class="caps" for="em-supp">Supporters' Player</label><input id="em-supp" list="playerNames"></div>
-    <div class="field"><label class="caps" for="em-squad">Squad (one per line, add (C) / (GK))</label><textarea id="em-squad" style="min-height:120px"></textarea></div>
-    <div class="field"><label class="caps" for="em-fines">Fines (e.g. Jake Askew late / Max Jermy paid)</label><textarea id="em-fines"></textarea></div>
-    <div class="field"><label class="caps" for="em-next">Next match details (meet time, venue, postcode)</label><textarea id="em-next"></textarea></div>
-    <div class="field"><label class="caps" for="em-notes">Notes for the preview or match report</label><textarea id="em-notes"></textarea></div>
-    <p class="note">Attach any Full-Time or WhatsApp screenshots in your mail app after it opens.</p>
-    <div class="msg"><label class="caps" for="em-out">Your email</label><textarea id="em-out" rows="10"></textarea></div>
-    <div class="btn-row"><a class="btn" id="em-mail" href="#">OPEN IN MAIL</a><button type="button" class="btn ghost" id="em-copy">COPY</button></div>
-    <button type="button" class="linkbtn" id="em-clear">Clear the form</button>`;
-  const v = id => $("#" + id).value.trim();
-  const lines = id => v(id).split(/\n+/).map(x => x.trim()).filter(Boolean);
-  const build = () => {
-    const opp = (v("em-game").split("(")[0] || "").trim() || "Them";
-    $("#em-opp").textContent = opp;
-    const parts = [];
-    if (v("em-game")) parts.push(`Game: ${v("em-game")}`);
-    if (v("em-us") !== "" && v("em-them") !== "") parts.push(`Score: Ludham ${v("em-us")}-${v("em-them")} ${opp}`);
-    if (lines("em-goals").length) parts.push("Goals:\n" + lines("em-goals").join("\n"));
-    if (lines("em-assists").length) parts.push("Assists:\n" + lines("em-assists").join("\n"));
-    if (v("em-motm")) parts.push(`MOTM: ${v("em-motm")}`);
-    if (v("em-supp")) parts.push(`Supporters player: ${v("em-supp")}`);
-    if (lines("em-squad").length) parts.push(`Squad for ${opp} game:\n` + lines("em-squad").join("\n"));
-    if (lines("em-fines").length) parts.push("Fines:\n" + lines("em-fines").join("\n"));
-    if (v("em-next")) parts.push(`Next match: ${v("em-next")}`);
-    if (v("em-notes")) parts.push(`Notes: ${v("em-notes")}`);
-    const body = parts.join("\n\n");
-    $("#em-out").value = body;
-    $("#em-mail").href = `mailto:${ADMIN.email || ""}?subject=${encodeURIComponent("Ludham update")}&body=${encodeURIComponent(body)}`;
-  };
-  $("#email").querySelectorAll("input, textarea:not(#em-out)").forEach(el => el.addEventListener("input", build));
-  $("#em-out").addEventListener("input", () => { $("#em-mail").href = `mailto:${ADMIN.email || ""}?subject=${encodeURIComponent("Ludham update")}&body=${encodeURIComponent($("#em-out").value)}`; });
-  $("#em-copy").addEventListener("click", e => copyText($("#em-out").value, e.currentTarget));
-  $("#em-clear").addEventListener("click", () => { $("#email").querySelectorAll("input:not(#em-game), textarea").forEach(el => el.value = ""); build(); });
-  build();
-}
 function renderAccess() {
   const pw = ADMIN.passwords || {};
   const labels = { players: "Players", supporters: "Supporters", manager: "Manager", admin: "Admin (you)" };
@@ -1936,9 +1914,9 @@ function play(panel) {
 
 /* ---------- tabs ---------- */
 let TABS = ["next", "fixtures", "table", "stats"];
-const TAB_LABELS = { next: "MATCH", fixtures: "FIXTURES", table: "TABLE", stats: "STATS", fines: "FINES", manager: "MANAGER", visitors: "VISITS", check: "CHECK", history: "HISTORY", email: "EMAIL", access: "ACCESS" };
+const TAB_LABELS = { next: "MATCH", fixtures: "FIXTURES", table: "TABLE", stats: "STATS", fines: "FINES", manager: "MANAGER", visitors: "VISITS", check: "CHECK", history: "HISTORY", alerts: "ALERTS", access: "ACCESS" };
 function buildNav() {
-  TABS = DATA.role === "admin" ? ["visitors", "check", "history", "email", "access"] : ["next", "fixtures", "table", "stats"];
+  TABS = DATA.role === "admin" ? ["visitors", "check", "history", "alerts", "access"] : ["next", "fixtures", "table", "stats"];
   if (DATA.fines) TABS.push("fines");
   if (DATA.role === "manager") TABS.push("manager");
   const list = $(".tablist");
@@ -2001,7 +1979,7 @@ function startSite() {
   document.body.classList.remove("locked");
   document.body.dataset.role = DATA.role || "";
   buildNav();
-  if (DATA.role === "admin") { ADMIN = DATA; window.__ludhamAdmin = true; renderVisitors(); renderCheck(); renderHistory(); renderEmailBuilder(); renderAccess(); show(location.hash.slice(1)); return; }
+  if (DATA.role === "admin") { ADMIN = DATA; window.__ludhamAdmin = true; renderVisitors(); renderCheck(); renderHistory(); renderAlerts(); renderAccess(); show(location.hash.slice(1)); return; }
   renderNext(); renderFixtures(); renderTable(); renderStatsShell();
   if (DATA.fines) renderFines();
   if (DATA.role === "manager") renderManager();
