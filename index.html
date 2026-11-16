@@ -1613,7 +1613,7 @@ async function renderVisitors() {
       const n = await gcCount(`/${r}/${t2}`); tabCounts[t2] = (tabCounts[t2] || 0) + n;
     })));
     const gfxCounts = await Promise.all(GC_GRAPHICS.map(g => gcCount(`graphic-${g}`)));
-    const appGroups = ["players", "supporters", "manager"];
+    const appGroups = ["players", "supporters", "manager", "admin"];
     const [alertsOn, alertsOff, alertsOn7, appOpens, appOpens7, installs, groupOn, groupOff] = await Promise.all([
       gcCount("alerts-on"), gcCount("alerts-off"), gcCount("alerts-on", W), gcCount("opened-app"), gcCount("opened-app", W), gcCount("installed-app"),
       Promise.all(appGroups.map(g => gcCount(`alerts-on-${g}`))), Promise.all(appGroups.map(g => gcCount(`alerts-off-${g}`)))]);
@@ -1660,11 +1660,11 @@ async function renderVisitors() {
         <div class="tile"><div class="caps">New this week</div><b>${alertsOn7}</b></div>
         <div class="tile"><div class="caps">Opens this week</div><b>${appOpens7}</b></div>
       </div>
-      ${appGroups.map((g, i) => `<div class="fine-row"><span class="name">Alerts on: ${g}</span><span></span><span class="amt">${groupNet[i]}</span></div>`).join("")}
-      ${noGroup ? `<div class="fine-row"><span class="name">Alerts on: group not recorded<small>turned on before groups were counted (16 Nov)</small></span><span></span><span class="amt">${noGroup}</span></div>` : ""}
+      ${appGroups.map((g, i) => `<div class="fine-row"><span class="name">Alerts on: ${g === "admin" ? "you" : g}</span><span></span><span class="amt">${groupNet[i]}</span></div>`).join("")}
+      ${noGroup ? `<div class="fine-row"><span class="name">Alerts on: group not recorded<small>counted before groups were added</small></span><span></span><span class="amt">${noGroup}</span></div>` : ""}
       <div class="fine-row"><span class="name">Opened from the home screen<small>${appOpens7} in the last 7 days</small></span><span></span><span class="amt">${appOpens}</span></div>
       <div class="fine-row"><span class="name">Installed on Android<small>iPhones don't report installs</small></span><span></span><span class="amt">${installs}</span></div>
-      <p class="note">Counted since 16 November. Your own phone isn't included. For the exact list of phones, see <a href="https://dashboard.onesignal.com" target="_blank" rel="noopener">OneSignal</a> → Audience, or ask Claude.</p>
+      <p class="note">Counted since 16 November. Phones that turned alerts on earlier are counted the next time they open the app. For the exact list of phones, see <a href="https://dashboard.onesignal.com" target="_blank" rel="noopener">OneSignal</a> → Audience, or ask Claude.</p>
       ${sectionHead("Visits by day")}
       <p class="note" style="margin-top:2px">Last 14 days · weekends in blue</p>
       ${dayChart}
@@ -2204,6 +2204,21 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
   });
   let OS = null;
   const isOn = () => !!(OS && OS.User.PushSubscription.optedIn);
+  // count each phone once while its alerts are on, for the admin Visits tab (James's phone included)
+  const COUNTED_KEY = 'ludhamfc-alerts-counted';
+  const countAlways = (path, title) => { const was = window.__ludhamAdmin; window.__ludhamAdmin = false; track(path, title, true); window.__ludhamAdmin = was; };
+  function noteAlerts() {
+    if (!DATA) return;
+    let counted = null; try { counted = localStorage.getItem(COUNTED_KEY); } catch (e) {}
+    const g = DATA.role || 'players';
+    if (isOn() && !counted) {
+      countAlways('alerts-on', 'Turned match alerts on'); countAlways(`alerts-on-${g}`, `Turned match alerts on (${g})`);
+      try { localStorage.setItem(COUNTED_KEY, g); } catch (e) {}
+    } else if (!isOn() && counted) {
+      countAlways('alerts-off', 'Turned match alerts off'); countAlways(`alerts-off-${counted}`, `Turned match alerts off (${counted})`);
+      try { localStorage.removeItem(COUNTED_KEY); } catch (e) {}
+    }
+  }
   function refresh() {
     link.hidden = !(OS && OS.Notifications.isPushSupported());
     link.textContent = isOn() ? 'Turn off match alerts' : 'Turn on match alerts';
@@ -2235,10 +2250,7 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
   $('#alertsX').addEventListener('click', () => close(true));
   link.addEventListener('click', () => {
     if (!OS) return;
-    if (isOn()) {
-      const g = (DATA && DATA.role) || 'players';
-      OS.User.PushSubscription.optOut(); track('alerts-off', 'Turned match alerts off', true); track(`alerts-off-${g}`, `Turned match alerts off (${g})`, true); refresh();
-    }
+    if (isOn()) { OS.User.PushSubscription.optOut(); refresh(); setTimeout(noteAlerts, 500); }
     else open();
   });
   OneSignalDeferred.push(async OneSignal => {
@@ -2256,13 +2268,11 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
       refresh();
       // tag on every opt-in signal: on some phones the first subscription arrives with previous.optedIn already true
       if (e.current.optedIn) tagMe(OneSignal);
-      if (e.current.optedIn && !e.previous.optedIn) {
-        const g = (DATA && DATA.role) || 'players';
-        track('alerts-on', 'Turned match alerts on', true); track(`alerts-on-${g}`, `Turned match alerts on (${g})`, true);
-      }
+      noteAlerts();
     });
     await unlocked();
     if (isOn()) tagMe(OneSignal);   // keep the group up to date (e.g. after switching password)
+    noteAlerts();
     let snoozed = false;
     try { snoozed = Date.now() - Number(localStorage.getItem(LATER_KEY) || 0) < 14 * 864e5; } catch (e) {}
     // offer alerts once the app is on the home screen
