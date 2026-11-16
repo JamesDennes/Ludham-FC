@@ -2084,6 +2084,16 @@ if ('serviceWorker' in navigator) addEventListener('load', () => navigator.servi
   else if ((ios || android) && !snoozed) loaderDone.then(unlocked).then(() => setTimeout(open, 1800));
 })();
 
+/* ---------- red badge on the app icon: clear it whenever the app is on screen ---------- */
+(() => {
+  const clear = () => {
+    try { if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); } catch (e) {}
+    try { if (window.caches) caches.open('ludham-badge').then(c => c.delete('count')).catch(() => {}); } catch (e) {}
+  };
+  clear();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) clear(); });
+})();
+
 /* ---------- match alerts (OneSignal web push) ---------- */
 window.OneSignalDeferred = window.OneSignalDeferred || [];
 (() => {
