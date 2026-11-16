@@ -2090,10 +2090,10 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
   const LATER_KEY = 'ludhamfc-alerts-later', card = $('#alerts'), body = $('#alertsBody'), link = $('#alertsLink');
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const blocked = () => typeof Notification !== 'undefined' && Notification.permission === 'denied';
-  // admin (James) gets the same alerts as the players
+  // admin (James) gets the same alerts as the players; team = players, manager and admin
   const tagMe = OS => {
     const r = (DATA && DATA.role) || 'players';
-    OS.User.addTags({ role: r === 'admin' ? 'players' : r, admin: r === 'admin' ? '1' : '' });
+    OS.User.addTags({ role: r === 'admin' ? 'players' : r, admin: r === 'admin' ? '1' : '', team: r === 'supporters' ? '' : '1' });
   };
   const unlocked = () => new Promise(r => {
     if (!document.body.classList.contains('locked')) return r();
