@@ -2090,7 +2090,11 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
   const LATER_KEY = 'ludhamfc-alerts-later', card = $('#alerts'), body = $('#alertsBody'), link = $('#alertsLink');
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const blocked = () => typeof Notification !== 'undefined' && Notification.permission === 'denied';
-  const role = () => (DATA && DATA.role) || 'players';
+  // admin (James) gets the same alerts as the players
+  const tagMe = OS => {
+    const r = (DATA && DATA.role) || 'players';
+    OS.User.addTags({ role: r === 'admin' ? 'players' : r, admin: r === 'admin' ? '1' : '' });
+  };
   const unlocked = () => new Promise(r => {
     if (!document.body.classList.contains('locked')) return r();
     const mo = new MutationObserver(() => { if (!document.body.classList.contains('locked')) { mo.disconnect(); r(); } });
@@ -2143,10 +2147,10 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
     OS = OneSignal; refresh();
     OneSignal.User.PushSubscription.addEventListener('change', e => {
       refresh();
-      if (e.current.optedIn && !e.previous.optedIn) { OneSignal.User.addTag('role', role()); track('alerts-on', 'Turned match alerts on', true); }
+      if (e.current.optedIn && !e.previous.optedIn) { tagMe(OneSignal); track('alerts-on', 'Turned match alerts on', true); }
     });
     await unlocked();
-    if (isOn()) OneSignal.User.addTag('role', role());   // keep the group up to date (e.g. after switching password)
+    if (isOn()) tagMe(OneSignal);   // keep the group up to date (e.g. after switching password)
     let snoozed = false;
     try { snoozed = Date.now() - Number(localStorage.getItem(LATER_KEY) || 0) < 14 * 864e5; } catch (e) {}
     // offer alerts once the app is on the home screen
