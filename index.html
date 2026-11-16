@@ -511,6 +511,17 @@
   @media (display-mode: standalone) {
     html, body { overscroll-behavior-y: none; }
   }
+
+  /* ---------- pull down to refresh (installed app only) ---------- */
+  .ptr { position: fixed; top: 6px; left: 50%; z-index: 45; width: 44px; height: 44px; margin-left: -22px; border-radius: 50%;
+    background: var(--paper); box-shadow: 0 4px 14px rgba(10,34,64,.25); display: flex; align-items: center; justify-content: center;
+    transform: translateY(-70px); opacity: 0; pointer-events: none; }
+  .ptr img { width: 34px; height: 34px; border-radius: 50%; }
+  .ptr.spin img { animation: ptr-spin .8s linear infinite; }
+  @keyframes ptr-spin { to { transform: rotate(360deg); } }
+  .ptr-msg { position: fixed; top: 60px; left: 50%; z-index: 45; transform: translateX(-50%); padding: 6px 14px; border-radius: 16px;
+    background: var(--ink); color: var(--paper); font: 600 13px Inter, sans-serif; opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap; }
+  .ptr-msg.show { opacity: 1; }
 </style>
 </head>
 <body class="locked loading">
@@ -604,6 +615,9 @@
   </div>
   <div id="alertsBody"></div>
 </div>
+
+<div class="ptr" id="ptr" aria-hidden="true"><img src="icons/icon-192.png" alt=""></div>
+<div class="ptr-msg" id="ptrMsg" role="status"></div>
 
 <nav class="tabs" aria-label="Sections">
   <div class="tablist" role="tablist">
@@ -2086,6 +2100,48 @@ if ('serviceWorker' in navigator) addEventListener('load', () => navigator.servi
   });
   if (wanted) loaderDone.then(() => setTimeout(open, 300));
   else if ((ios || android) && !snoozed) loaderDone.then(unlocked).then(() => setTimeout(open, 1800));
+})();
+
+/* ---------- pull down to refresh (installed app only; browsers have their own) ---------- */
+(() => {
+  if (!(matchMedia('(display-mode: standalone)').matches || navigator.standalone === true)) return;
+  const ptr = $('#ptr'), img = ptr.querySelector('img'), msg = $('#ptrMsg');
+  const GO = 70, MAX = 110;
+  let y0 = null, dy = 0, busy = false;
+  const set = (d, smooth) => {
+    ptr.style.transition = smooth ? 'transform .25s, opacity .25s' : 'none';
+    ptr.style.transform = `translateY(${d - 70}px)`;
+    ptr.style.opacity = Math.min(1, d / 40);
+    if (!busy) img.style.transform = `rotate(${d * 3}deg)`;
+  };
+  const say = text => { msg.textContent = text; msg.classList.add('show'); setTimeout(() => msg.classList.remove('show'), 1600); };
+  addEventListener('touchstart', e => {
+    if (busy || scrollY > 0 || e.touches.length > 1 || document.querySelector('.gfx-modal:not([hidden])')) return;
+    y0 = e.touches[0].clientY; dy = 0;
+  }, { passive: true });
+  addEventListener('touchmove', e => {
+    if (y0 === null) return;
+    if (scrollY > 0) { y0 = null; set(0, true); return; }
+    dy = Math.min(MAX, Math.max(0, (e.touches[0].clientY - y0) * 0.55));
+    set(dy);
+  }, { passive: true });
+  addEventListener('touchend', async () => {
+    if (y0 === null) return;
+    y0 = null;
+    if (dy < GO) return set(0, true);
+    busy = true; img.style.transform = ''; ptr.classList.add('spin'); set(GO * 0.8, true);
+    try {
+      // what this screen was loaded from, versus what's live now
+      let before = null;
+      try { const r = await caches.match('./'); before = r ? await r.text() : null; } catch (e) {}
+      const html = await (await fetch(location.pathname, { cache: 'no-cache' })).text();
+      const m = html.match(/const VAULT = (\{.*?\});/s);
+      const changed = before ? html !== before : !!(m && JSON.parse(m[1]).salt !== VAULT.salt);
+      if (changed) { location.reload(); return; }
+      say('Up to date ✓');
+    } catch (e) { say('No signal – showing the last update'); }
+    ptr.classList.remove('spin'); busy = false; set(0, true);
+  });
 })();
 
 /* ---------- red badge on the app icon: clear it whenever the app is on screen ---------- */
