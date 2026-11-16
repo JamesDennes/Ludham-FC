@@ -522,6 +522,21 @@
   .ptr-msg { position: fixed; top: 60px; left: 50%; z-index: 45; transform: translateX(-50%); padding: 6px 14px; border-radius: 16px;
     background: var(--ink); color: var(--paper); font: 600 13px Inter, sans-serif; opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap; }
   .ptr-msg.show { opacity: 1; }
+  /* ---------- dark mode (follows the phone's setting) ---------- */
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #0F1B2C; --paper-2: #16253A; --ink: #ECE6DC; --navy: #8DB3E6; --muted: #9AA7BA; --rule: #2B3B52; }
+    html { color-scheme: dark; }
+    nav.tabs { background: #07111F; box-shadow: 0 -4px 18px rgba(0,0,0,.5); }
+    .tab { color: #7F8DA3; } .tab[aria-selected="true"] { color: #ECE6DC; } .tab-ink::before { background: #ECE6DC; }
+    .mast-spon img, .loader .spon img { background: #ECE6DC; padding: 4px 8px; border-radius: 4px; box-sizing: content-box; }
+    .lock input[type=password], .msg textarea, .field input, .field textarea { background: #16253A; color: #ECE6DC; }
+    .lt-row.us { color: #F3EFE9; border-bottom-color: #1E4C86; } .lt-row.us > span { color: #F3EFE9 !important; } .lt-row.us::before { background: #1E4C86; }
+    .loader { background: #0F1B2C; } .loader .track { stroke: #2B3B52; }
+    .getapp { box-shadow: 0 10px 30px rgba(0,0,0,.55); }
+    .award.star, .tile.dark, .announce { background: #1E4C86; color: #F3EFE9; }
+    .announce { border-top-color: #8DB3E6; }
+    .big-stamp { background: rgba(15,27,44,.6); }
+  }
 </style>
 </head>
 <body class="locked loading">
