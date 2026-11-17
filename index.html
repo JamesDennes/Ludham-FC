@@ -1225,6 +1225,58 @@ function refreshPick() {
   $("#squadMsg").value = squadText();
   try { localStorage.setItem(PICK_KEY, JSON.stringify(pick)); } catch (e) {}
 }
+/* ---------- Chase subs: the manager picks players and sends them the subs alert (through the Cloudflare go-between) ---------- */
+const SUBS_URL = "";   // the Cloudflare Worker address, once it's set up
+let UNLOCK_PW = "", chase = [];
+function subsGame() {
+  const week = new Date(); week.setDate(week.getDate() - 8);
+  const r = (DATA.results || []).filter(x => /^\d+-\d+$/.test(x.score || "") && parseDate(x.date) >= week).sort((a, b) => b.date.localeCompare(a.date))[0];
+  return r ? `${parseDate(r.date).toLocaleDateString("en-GB", { weekday: "long" })}'s game v ${r.opponent}` : "";
+}
+function renderChase() {
+  if (!SUBS_URL) return;   // hidden until the go-between is set up
+  const players = allPlayers(), game = subsGame();
+  chase = chase.filter(n => players.includes(n));
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    ${sectionHead("Chase subs")}
+    <p class="empty serif" style="margin-top:4px">Tap the players who haven't paid, then send them a reminder on their phone${game ? ` for ${esc(game)}` : ""}. Each player gets one reminder a day at most.</p>
+    <div class="pick-grid">${players.map(n => `<button type="button" class="pick chase" data-name="${esc(n)}">${nameHtml(n)}</button>`).join("")}</div>
+    <button type="button" class="btn" id="chaseGo" style="width:100%;justify-content:center;margin-top:12px">SEND SUBS REMINDER</button>
+    <div id="chaseOut" aria-live="polite"></div>`;
+  $("#manager").appendChild(wrap);
+  const go = $("#chaseGo"), out = $("#chaseOut");
+  const refresh = () => {
+    wrap.querySelectorAll(".chase").forEach(b => b.classList.toggle("on", chase.includes(b.dataset.name)));
+    go.disabled = !chase.length || !SUBS_URL;
+    go.textContent = !SUBS_URL ? "NOT SWITCHED ON YET" : chase.length ? `SEND SUBS REMINDER (${chase.length})` : "SEND SUBS REMINDER";
+  };
+  wrap.querySelectorAll(".chase").forEach(b => b.addEventListener("click", () => {
+    const n = b.dataset.name; chase = chase.includes(n) ? chase.filter(x => x !== n) : [...chase, n]; refresh();
+  }));
+  go.addEventListener("click", async () => {
+    go.disabled = true; go.textContent = "SENDING…"; out.innerHTML = "";
+    let res = null, err = "";
+    try {
+      // players save their own name, so also try the first name when nobody else in the squad shares it (JJ Roe → "JJ")
+      const first = n => n.split(" ")[0], count = {};
+      players.forEach(n => { count[first(n)] = (count[first(n)] || 0) + 1; });
+      const names = chase.map(n => count[first(n)] === 1 && first(n) !== n ? [n, first(n)] : [n]);
+      const r = await fetch(SUBS_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pw: UNLOCK_PW, names, game }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 403) err = "That only works when you're logged in with the manager password.";
+      else if (!r.ok || !j.results) err = "Couldn't send just now. Try again in a minute.";
+      else res = j.results;
+    } catch (e) { err = "No signal – couldn't send. Try again when you're back online."; }
+    if (res) {
+      const sent = Object.keys(res).filter(n => res[n] === "sent"), none = Object.keys(res).filter(n => res[n] !== "sent");
+      out.innerHTML = `${sent.length ? `<p class="note">✓ Reminder sent to ${esc(sent.join(", "))}.</p>` : ""}${none.length ? `<p class="note">✗ Couldn't reach ${esc(none.join(", "))} – they haven't turned alerts on with their name saved, so chase them on WhatsApp.</p>` : ""}`;
+      chase = [];
+    } else out.innerHTML = `<p class="note">${esc(err)}</p>`;
+    refresh();
+  });
+  refresh();
+}
 function renderManager() {
   try { const s = JSON.parse(localStorage.getItem(PICK_KEY) || "null"); if (s && Array.isArray(s.on)) pick = s; } catch (e) {}
   if (!pick.on.length && (DATA.squad || []).length) {
@@ -1267,6 +1319,7 @@ function renderManager() {
   $("#pickGK").addEventListener("change", e => { pick.gk = e.target.value; refreshPick(); });
   $("#copySquad").addEventListener("click", e => copyText($("#squadMsg").value, e.currentTarget));
   $("#manager").querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", () => copyText($("#" + b.dataset.copy).value, b)));
+  renderChase();
   $("#manager").querySelectorAll("[data-gfx]").forEach(b => b.addEventListener("click", () => openGraphic(b.dataset.gfx, b)));
   refreshPick();
 }
@@ -2004,7 +2057,7 @@ $("#lockForm").addEventListener("submit", async e => {
     if (document.activeElement) document.activeElement.blur();
     form.classList.add("leaving");
     await new Promise(r => setTimeout(r, calm ? 0 : 280));
-    DATA = data;
+    DATA = data; UNLOCK_PW = pw;
     try { $("#remember").checked ? localStorage.setItem(PW_KEY, pw) : localStorage.removeItem(PW_KEY); } catch (err) {}
     startSite();
   }
@@ -2049,7 +2102,7 @@ const loaderDone = (async () => {
   let saved = null;
   try { saved = localStorage.getItem(PW_KEY); } catch (e) {}
   if (saved) {
-    try { const d = await decryptData(saved); await loaderDone; DATA = d; startSite(); return; } catch (e) {}
+    try { const d = await decryptData(saved); await loaderDone; DATA = d; UNLOCK_PW = saved; startSite(); return; } catch (e) {}
     try { localStorage.removeItem(PW_KEY); } catch (e) {}
   }
   await loaderDone;
