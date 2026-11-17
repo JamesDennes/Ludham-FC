@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lock the club data</title>
+<style>
+  :root { --ink: #0E3B2E; --paper: #F3EFE9; --muted: #5a6560; --bad: #A3261C; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { margin: 0 0 4px; font-size: 28px; }
+  h2 { margin: 28px 0 6px; font-size: 19px; border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
+  p, li { color: var(--muted); }
+  label { display: block; font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin-top: 10px; }
+  input, textarea { width: 100%; padding: 10px; border: 2px solid var(--ink); background: #fff; color: var(--ink); font: 15px ui-monospace, Menlo, Consolas, monospace; }
+  textarea { min-height: 420px; resize: vertical; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 14px; }
+  button { margin-top: 14px; padding: 12px 18px; border: 0; background: var(--ink); color: var(--paper); font: 700 15px system-ui, sans-serif; letter-spacing: .06em; cursor: pointer; }
+  button.ghost { background: none; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+  .msg { margin-top: 12px; font-weight: 600; }
+  .msg.bad { color: var(--bad); }
+  code { background: #fff; padding: 1px 5px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lock the club data</h1>
+  <p>This page turns the club's data into an encrypted <code>data.js</code> file. Only someone with one of the passwords can read it, and each password opens a different version of the app. Everything happens on this computer: nothing is sent anywhere.</p>
+
+  <h2>1. Start from something</h2>
+  <p>Open your current <code>data.js</code> with the admin password to edit it, or start from the demo data.</p>
+  <div class="grid">
+    <div><label for="openFile">Current data.js</label><input type="file" id="openFile" accept=".js"></div>
+    <div><label for="openPw">Admin password</label><input id="openPw" type="password" autocomplete="off"></div>
+  </div>
+  <button type="button" id="openBtn" class="ghost">OPEN IT</button>
+  <button type="button" id="demoBtn" class="ghost">START FROM THE DEMO DATA</button>
+  <div class="msg" id="openMsg"></div>
+
+  <h2>2. Edit the data</h2>
+  <p>The format is explained in <code>README.md</code>. Dates are written <code>YYYY-MM-DD</code>, kick-off times <code>14:00</code>, and scores are always <em>our goals first</em>, e.g. <code>2-1</code>.</p>
+  <label for="json">Club data (JSON)</label>
+  <textarea id="json" spellcheck="false"></textarea>
+
+  <h2>3. Choose the passwords</h2>
+  <p>Capitals don't matter. Each must be different.</p>
+  <div class="grid">
+    <div><label for="pw-players">Players</label><input id="pw-players" autocomplete="off"></div>
+    <div><label for="pw-supporters">Supporters</label><input id="pw-supporters" autocomplete="off"></div>
+    <div><label for="pw-manager">Manager</label><input id="pw-manager" autocomplete="off"></div>
+    <div><label for="pw-admin">Admin</label><input id="pw-admin" autocomplete="off"></div>
+  </div>
+  <label for="gcKey">GoatCounter API key (optional, admin only)</label>
+  <input id="gcKey" autocomplete="off" placeholder="Only if you use GoatCounter and want live visitor numbers">
+
+  <h2>4. Lock it</h2>
+  <button type="button" id="lockBtn">LOCK AND DOWNLOAD data.js</button>
+  <div class="msg" id="lockMsg"></div>
+  <p>Put the downloaded <code>data.js</code> next to <code>index.html</code>, replacing the demo one, and upload it. Phones pick up the change the next time they open the app.</p>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const ROLES = ["players", "supporters", "manager", "admin"];
+const ITER = 250000;
+const b64 = u => btoa(String.fromCharCode(...u));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function keyFor(pw, salt) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw.trim().toUpperCase()), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: ITER, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+function say(el, text, bad) { el.textContent = text; el.className = "msg" + (bad ? " bad" : ""); }
+
+/* The data the admin password opens is the master copy: the site data plus the passwords */
+$("#openBtn").addEventListener("click", async () => {
+  const f = $("#openFile").files[0], msg = $("#openMsg");
+  if (!f || !$("#openPw").value) return say(msg, "Choose the data.js file and type the admin password.", true);
+  const text = await f.text(), m = text.match(/VAULT = (\{.*?\});/s);
+  if (!m) return say(msg, "That file isn't locked yet. It may be the demo version: use START FROM THE DEMO DATA instead.", true);
+  const V = JSON.parse(m[1]);
+  say(msg, "Opening…");
+  const key = await keyFor($("#openPw").value, unb64(V.salt));
+  for (const box of V.boxes) {
+    try {
+      const d = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(box.iv) }, key, unb64(box.data))));
+      if (d.role !== "admin") return say(msg, "That's not the admin password. Only the admin password can open the data for editing.", true);
+      fill(d.site, d.passwords, d.gcKey);
+      return say(msg, "Opened. Make your changes below, then lock it again.");
+    } catch (e) {}
+  }
+  say(msg, "That password didn't open the file.", true);
+});
+$("#demoBtn").addEventListener("click", async () => {
+  try {
+    await new Promise((ok, bad) => { const s = document.createElement("script"); s.src = "../data.js"; s.onload = ok; s.onerror = bad; document.head.appendChild(s); });
+    if (typeof DEMO_DATA !== "function") throw 0;
+    const d = DEMO_DATA("admin");
+    fill(d.site, { players: "", supporters: "", manager: "", admin: "" });
+    say($("#openMsg"), "Loaded the demo data. Change it to your club's, choose passwords and lock it.");
+  } catch (e) { say($("#openMsg"), "Couldn't load ../data.js. Open this page from the tools folder of the app.", true); }
+});
+function fill(site, pw, gcKey) {
+  const { role, ...rest } = site || {};
+  $("#json").value = JSON.stringify(rest, null, 2);
+  ROLES.forEach(r => $("#pw-" + r).value = (pw || {})[r] || "");
+  $("#gcKey").value = gcKey || "";
+}
+
+$("#lockBtn").addEventListener("click", async () => {
+  const msg = $("#lockMsg");
+  let site;
+  try { site = JSON.parse($("#json").value); } catch (e) { return say(msg, "The club data has a mistake in it: " + e.message, true); }
+  const pw = Object.fromEntries(ROLES.map(r => [r, $("#pw-" + r).value.trim().toUpperCase()]));
+  if (ROLES.some(r => !pw[r])) return say(msg, "Fill in all four passwords.", true);
+  if (new Set(Object.values(pw)).size < 4) return say(msg, "Each password must be different.", true);
+  say(msg, "Locking… (this takes a few seconds)");
+  const { fines, ...noFines } = site;
+  const views = {
+    players: { ...site, role: "players" },
+    supporters: { ...noFines, role: "supporters" },
+    manager: { ...site, role: "manager" },
+    admin: { role: "admin", site, passwords: pw, ...($("#gcKey").value.trim() ? { gcKey: $("#gcKey").value.trim() } : {}) }
+  };
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const boxes = [];
+  for (const r of ROLES) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const data = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await keyFor(pw[r], salt), new TextEncoder().encode(JSON.stringify(views[r]))));
+    boxes.push({ iv: b64(iv), data: b64(data) });
+  }
+  boxes.sort(() => Math.random() - .5);   // don't give away which box is which
+  const out = `/* =====================================================================
+   CLUB DATA: LOCKED ${new Date().toISOString().slice(0, 10)}
+   Encrypted with tools/lock.html. To change it, open that page, load this
+   file with the admin password, edit, and lock it again.
+   ===================================================================== */
+window.VAULT = ${JSON.stringify({ salt: b64(salt), iter: ITER, boxes })};
+`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([out], { type: "text/javascript" })); a.download = "data.js";
+  document.body.appendChild(a); a.click(); a.remove();
+  say(msg, "Done. data.js has been downloaded.");
+});
+</script>
+</body>
+</html>

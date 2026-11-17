@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Placeholder crest for the demo club. Replace with your club's badge (any square SVG or PNG). -->
+  <defs>
+    <path id="t" d="M 96 256 A 160 160 0 0 1 416 256"/>
+    <path id="b" d="M 70 256 A 186 186 0 0 0 442 256"/>
+  </defs>
+  <circle cx="256" cy="256" r="252" fill="#D6A532"/>
+  <circle cx="256" cy="256" r="236" fill="#0E3B2E"/>
+  <circle cx="256" cy="256" r="150" fill="#F3EFE9"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#D6A532" stroke-width="8"/>
+  <text font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="46" letter-spacing="6" fill="#F3EFE9" text-anchor="middle"><textPath href="#t" startOffset="50%">OAKFIELD</textPath></text>
+  <text font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="40" letter-spacing="8" fill="#F3EFE9" text-anchor="middle"><textPath href="#b" startOffset="50%">ROVERS FC</textPath></text>
+  <circle cx="74" cy="256" r="9" fill="#D6A532"/><circle cx="438" cy="256" r="9" fill="#D6A532"/>
+  <!-- oak leaf -->
+  <g transform="translate(256 250)">
+    <path fill="#1F6B4F" d="M0 -112 C 18 -98 34 -96 42 -80 C 30 -70 34 -58 54 -56 C 58 -38 46 -28 30 -26 C 40 -14 58 -10 62 8 C 46 14 42 26 54 40 C 40 52 22 46 12 40 C 14 58 10 74 0 90 C -10 74 -14 58 -12 40 C -22 46 -40 52 -54 40 C -42 26 -46 14 -62 8 C -58 -10 -40 -14 -30 -26 C -46 -28 -58 -38 -54 -56 C -34 -58 -30 -70 -42 -80 C -34 -96 -18 -98 0 -112 Z"/>
+    <path d="M0 -96 V 112" stroke="#0E3B2E" stroke-width="7" stroke-linecap="round"/>
+    <path d="M0 -40 L 26 -58 M0 -10 L 34 -24 M0 22 L 30 6 M0 -40 L -26 -58 M0 -10 L -34 -24 M0 22 L -30 6" stroke="#0E3B2E" stroke-width="4" stroke-linecap="round"/>
+    <ellipse cx="0" cy="118" rx="16" ry="20" fill="#B8871F"/><path d="M-18 106 Q0 90 18 106 Z" fill="#6E4F12"/>
+  </g>
+</svg>
