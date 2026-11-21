@@ -2243,6 +2243,8 @@ if ('serviceWorker' in navigator) addEventListener('load', () => navigator.servi
     try { if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); } catch (e) {}
     // the count the alerts worker keeps (plus the one it used to keep under its own folder)
     try { if (window.caches) caches.open('ludham-badge').then(c => Promise.all(['/Ludham-FC/badge-count', '/Ludham-FC/push/onesignal/count'].map(k => c.delete(k)))).catch(() => {}); } catch (e) {}
+    // and clear Ludham's alerts from the phone's notifications, since they've now been seen
+    try { navigator.serviceWorker.getRegistration('/Ludham-FC/push/onesignal/').then(r => r && r.getNotifications()).then(ns => (ns || []).forEach(n => n.close())).catch(() => {}); } catch (e) {}
   };
   clear();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) clear(); });
