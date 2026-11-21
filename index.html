@@ -538,6 +538,20 @@
     .announce { border-top-color: #8DB3E6; }
     .big-stamp { background: rgba(15,27,44,.6); }
   }
+
+  /* ---------- live score from the touchline (above the Match tab) ---------- */
+  .live-score { display: none; padding: 18px 0 6px; }
+  .live-score.on:has(+ #next.active) { display: block; }
+  .locked .live-score { display: none !important; }
+  .live-score .stamp.Live { color: #B3412E; border-color: #B3412E; }
+  .live-score .note { margin-top: 8px; }
+  .sc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .sc-row .nm { font: 400 26px/1 Anton, Impact, sans-serif; text-transform: uppercase; }
+  .sc-step { display: flex; align-items: center; gap: 10px; }
+  .sc-step button { width: 44px; height: 44px; border: 2px solid var(--ink); background: transparent; color: var(--ink); font: 400 24px/1 Anton, Impact, sans-serif; cursor: pointer; }
+  .sc-step b { min-width: 40px; text-align: center; font: 400 44px/1 Anton, Impact, sans-serif; font-variant-numeric: tabular-nums; }
+  .sc-stage { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .sc-stage .pick { text-align: center; }
 </style>
 </head>
 <body class="locked loading">
@@ -576,6 +590,7 @@
     <div class="err" id="pwErr" role="alert"></div>
   </form>
 
+  <div class="live-score" id="liveScore" aria-live="polite"></div>
   <section id="next" role="tabpanel" aria-labelledby="tab-next"></section>
   <section id="fixtures" role="tabpanel" aria-labelledby="tab-fixtures"></section>
   <section id="table" role="tabpanel" aria-labelledby="tab-table"></section>
@@ -586,6 +601,7 @@
   <section id="visitors" role="tabpanel" aria-labelledby="tab-visitors"></section>
   <section id="check" role="tabpanel" aria-labelledby="tab-check"></section>
   <section id="history" role="tabpanel" aria-labelledby="tab-history"></section>
+  <section id="score" role="tabpanel" aria-labelledby="tab-score"></section>
   <section id="signups" role="tabpanel" aria-labelledby="tab-signups"></section>
   <section id="access" role="tabpanel" aria-labelledby="tab-access"></section>
 
@@ -1225,8 +1241,89 @@ function refreshPick() {
   $("#squadMsg").value = squadText();
   try { localStorage.setItem(PICK_KEY, JSON.stringify(pick)); } catch (e) {}
 }
+const HUB_URL = "";      // the Cloudflare go-between (Worker) address, ending in "/", once it's set up
+const CHASE_ON = false;  // Chase subs for the manager: switch on once Ollie's agreed
+/* ---------- live score: sent from the admin Score tab through the go-between, shown above the Match tab ---------- */
+const SCORE_URL = HUB_URL ? HUB_URL + "score" : "";
+const scoreRows = s => {
+  const line = (name, g, mine) => `<div class="sl ${mine ? "us" : ""}"><span class="nm">${esc(name)}</span><span class="gl">${g}</span></div>`;
+  return isAway(s.homeAway) ? line(s.opponent, s.them, false) + line(CLUB, s.us, true) : line(CLUB, s.us, true) + line(s.opponent, s.them, false);
+};
+async function loadLiveScore() {
+  const box = $("#liveScore");
+  if (!SCORE_URL || !DATA || DATA.role === "admin") { box.classList.remove("on"); return; }
+  let s = null;
+  try { s = await (await fetch(SCORE_URL, { cache: "no-store" })).json(); } catch (e) { return; }   // no signal: keep what's showing
+  const age = s && s.date ? (Date.now() - parseDate(s.date)) / 864e5 : 99;
+  const done = s && (DATA.results || []).some(r => r.date === s.date);   // the proper result is in: it takes over
+  if (!s || !s.stage || done || age > 3 || age < -1) { box.classList.remove("on"); box.innerHTML = ""; return; }
+  const res = s.us > s.them ? "Won" : s.us < s.them ? "Lost" : "Drew";
+  const stamp = s.stage === "ft" ? res : "Live", word = s.stage === "ft" ? (res === "Drew" ? "DRAW" : res.toUpperCase()) : s.stage === "ht" ? "HT" : "LIVE";
+  const when = new Date(s.at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s/g, "").toLowerCase();
+  box.innerHTML = `<div class="match-head">
+      <div class="date serif">${s.stage === "ft" ? "Full time" : s.stage === "ht" ? "Half time" : "Live score"} · ${esc(fmt(s.date, { weekday: "long", day: "numeric", month: "long" }))}</div>
+      <div class="stamp display ${stamp}">${word}</div>
+      <div class="scoreline">${scoreRows(s)}</div>
+    </div>
+    <p class="note">${s.stage === "ft" ? "Full match report to follow." : "Updated from the touchline"} · ${esc(when)}</p>`;
+  box.classList.add("on");
+}
+function renderScore() {
+  const el = $("#score"), site = (ADMIN && ADMIN.site) || DATA, m = site.nextMatch || {};
+  if (!SCORE_URL) {
+    el.innerHTML = `<h2 class="panel-title display">Score</h2><p class="panel-sub serif">Send the score from the touchline</p>
+      <p class="empty">Not switched on yet. It needs the Cloudflare go-between set up first – ask Claude.</p>`;
+    return;
+  }
+  const recent = (site.results || []).filter(r => (Date.now() - parseDate(r.date)) / 864e5 < 1.5)[0];
+  const g = { date: m.date, opponent: m.opponent, homeAway: m.homeAway };
+  if (recent && (!m.date || parseDate(m.date) > Date.now() + 864e5)) Object.assign(g, { date: recent.date, opponent: recent.opponent, homeAway: recent.homeAway });
+  if (!g.date || !g.opponent) { el.innerHTML = `<h2 class="panel-title display">Score</h2><p class="empty">No game to send a score for.</p>`; return; }
+  let us = 0, them = 0, stage = "live";
+  el.innerHTML = `<h2 class="panel-title display">Score</h2>
+    <p class="panel-sub serif">${esc(isAway(g.homeAway) ? `${g.opponent} v ${CLUB}` : `${CLUB} v ${g.opponent}`)} · ${esc(fmt(g.date, { weekday: "short", day: "numeric", month: "short" }))}</p>
+    <div class="sc-row"><span class="nm">${esc(CLUB)}</span><span class="sc-step"><button type="button" data-sc="us,-1" aria-label="One fewer for ${esc(CLUB)}">−</button><b id="scUs">0</b><button type="button" data-sc="us,1" aria-label="One more for ${esc(CLUB)}">+</button></span></div>
+    <div class="sc-row"><span class="nm">${esc(g.opponent)}</span><span class="sc-step"><button type="button" data-sc="them,-1" aria-label="One fewer for ${esc(g.opponent)}">−</button><b id="scThem">0</b><button type="button" data-sc="them,1" aria-label="One more for ${esc(g.opponent)}">+</button></span></div>
+    <div class="sc-stage">${[["live", "SCORE UPDATE"], ["ht", "HALF TIME"], ["ft", "FULL TIME"]].map(([k, l]) => `<button type="button" class="pick" data-stage="${k}">${l}</button>`).join("")}</div>
+    <label class="remember" style="margin-top:14px;display:flex"><input type="checkbox" id="scAlert" checked> Send an alert to everyone</label>
+    <button type="button" class="btn" id="scGo" style="width:100%;justify-content:center;margin-top:12px">SEND</button>
+    <div id="scOut" aria-live="polite"></div>
+    ${sectionHead("Showing now")}
+    <div id="scNow"><p class="empty">Checking…</p></div>`;
+  const paint = () => {
+    $("#scUs").textContent = us; $("#scThem").textContent = them;
+    el.querySelectorAll("[data-stage]").forEach(b => b.classList.toggle("on", b.dataset.stage === stage));
+  };
+  el.querySelectorAll("[data-sc]").forEach(b => b.addEventListener("click", () => {
+    const [side, d] = b.dataset.sc.split(","); if (side === "us") us = Math.max(0, us + +d); else them = Math.max(0, them + +d); paint();
+  }));
+  el.querySelectorAll("[data-stage]").forEach(b => b.addEventListener("click", () => { stage = b.dataset.stage; paint(); }));
+  const showNow = async () => {
+    let s = null; try { s = await (await fetch(SCORE_URL, { cache: "no-store" })).json(); } catch (e) {}
+    $("#scNow").innerHTML = s && s.stage
+      ? `<div class="fine-row"><span class="name">${esc(s.stage === "ft" ? "Full time" : s.stage === "ht" ? "Half time" : "Live")}: ${esc(CLUB)} ${s.us}–${s.them} ${esc(s.opponent)}<small>sent ${esc(new Date(s.at).toLocaleString("en-GB", { weekday: "short", hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s(am|pm)$/i, "$1"))}</small></span><span></span><button type="button" class="linkbtn" id="scClear">Clear</button></div>`
+      : `<p class="empty">${s ? "Nothing showing." : "Couldn't check just now."}</p>`;
+    const c = $("#scClear"); if (c) c.addEventListener("click", async () => {
+      try { await fetch(SCORE_URL, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pw: UNLOCK_PW }) }); } catch (e) {}
+      showNow();
+    });
+  };
+  $("#scGo").addEventListener("click", async () => {
+    const go = $("#scGo"), out = $("#scOut"); go.disabled = true; go.textContent = "SENDING…"; out.innerHTML = "";
+    try {
+      const r = await fetch(SCORE_URL, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pw: UNLOCK_PW, ...g, us, them, stage, alert: $("#scAlert").checked }) });
+      const j = await r.json().catch(() => ({}));
+      out.innerHTML = r.status === 403 ? `<p class="note">That only works with the admin or manager password.</p>`
+        : !r.ok ? `<p class="note">Couldn't send: ${esc(j.error || "try again in a minute")}.</p>`
+        : `<p class="note">✓ Showing in the app now${j.alert === "sent" ? ", and the alert's gone out" : j.alert === "not sent" ? " (no alert sent)" : ` (alert: ${esc(j.alert)})`}.</p>`;
+    } catch (e) { out.innerHTML = `<p class="note">No signal – couldn't send. Try again when you're back online.</p>`; }
+    go.disabled = false; go.textContent = "SEND"; showNow();
+  });
+  paint(); showNow();
+}
 /* ---------- Chase subs: the manager picks players and sends them the subs alert (through the Cloudflare go-between) ---------- */
-const SUBS_URL = "";   // the Cloudflare Worker address, once it's set up
+const SUBS_URL = CHASE_ON && HUB_URL ? HUB_URL + "subs" : "";
 let UNLOCK_PW = "", chase = [];
 function subsGame() {
   const week = new Date(); week.setDate(week.getDate() - 8);
@@ -1967,9 +2064,9 @@ function play(panel) {
 
 /* ---------- tabs ---------- */
 let TABS = ["next", "fixtures", "table", "stats"];
-const TAB_LABELS = { next: "MATCH", fixtures: "FIXTURES", table: "TABLE", stats: "STATS", fines: "FINES", manager: "MANAGER", visitors: "VISITS", check: "CHECK", history: "HISTORY", signups: "ALERTS", access: "ACCESS" };
+const TAB_LABELS = { next: "MATCH", fixtures: "FIXTURES", table: "TABLE", stats: "STATS", fines: "FINES", manager: "MANAGER", visitors: "VISITS", check: "CHECK", history: "HISTORY", score: "SCORE", signups: "ALERTS", access: "ACCESS" };
 function buildNav() {
-  TABS = DATA.role === "admin" ? ["visitors", "check", "history", "signups", "access"] : ["next", "fixtures", "table", "stats"];
+  TABS = DATA.role === "admin" ? ["visitors", "check", "score", "history", "signups", "access"] : ["next", "fixtures", "table", "stats"];
   if (DATA.fines) TABS.push("fines");
   if (DATA.role === "manager") TABS.push("manager");
   const list = $(".tablist");
@@ -2032,13 +2129,17 @@ function startSite() {
   document.body.classList.remove("locked");
   document.body.dataset.role = DATA.role || "";
   buildNav();
-  if (DATA.role === "admin") { ADMIN = DATA; window.__ludhamAdmin = true; renderVisitors(); renderCheck(); renderHistory(); renderAlerts(); renderAccess(); show(location.hash.slice(1)); return; }
+  if (DATA.role === "admin") { ADMIN = DATA; window.__ludhamAdmin = true; renderVisitors(); renderCheck(); renderHistory(); renderAlerts(); renderScore(); renderAccess(); show(location.hash.slice(1)); return; }
   renderNext(); renderFixtures(); renderTable(); renderStatsShell();
   if (DATA.fines) renderFines();
   if (DATA.role === "manager") renderManager();
   track(`unlocked-${DATA.role || "players"}`, `Unlocked as ${DATA.role || "players"}`, true);
   show(location.hash.slice(1));
+  loadLiveScore();
 }
+// keep the live score fresh: when the app comes back on screen, and every minute while it's open
+document.addEventListener("visibilitychange", () => { if (!document.hidden && DATA) loadLiveScore(); });
+setInterval(() => { if (!document.hidden && DATA && SCORE_URL) loadLiveScore(); }, 60000);
 const PW_KEY = "ludhamfc-pw";
 $("#switchPw").addEventListener("click", () => {
   try { localStorage.removeItem(PW_KEY); } catch (e) {}
