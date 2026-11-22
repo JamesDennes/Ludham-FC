@@ -1275,9 +1275,10 @@ function renderScore() {
       <p class="empty">Not switched on yet. It needs the Cloudflare go-between set up first – ask Claude.</p>`;
     return;
   }
-  const recent = (site.results || []).filter(r => (Date.now() - parseDate(r.date)) / 864e5 < 1.5)[0];
+  // the next game, except on the day of a game whose result is already in (so a full-time score can still be sent or corrected)
+  const today = isoDay(new Date()), recent = (site.results || []).find(r => r.date === today);
   const g = { date: m.date, opponent: m.opponent, homeAway: m.homeAway };
-  if (recent && (!m.date || parseDate(m.date) > Date.now() + 864e5)) Object.assign(g, { date: recent.date, opponent: recent.opponent, homeAway: recent.homeAway });
+  if (recent && m.date !== today) Object.assign(g, { date: recent.date, opponent: recent.opponent, homeAway: recent.homeAway });
   if (!g.date || !g.opponent) { el.innerHTML = `<h2 class="panel-title display">Score</h2><p class="empty">No game to send a score for.</p>`; return; }
   let us = 0, them = 0, stage = "live";
   el.innerHTML = `<h2 class="panel-title display">Score</h2>
