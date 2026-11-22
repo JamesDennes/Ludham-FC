@@ -3,6 +3,7 @@
 //   GET  /score  the latest score sent from the touchline (public: score and opponent only)
 //   POST /score  admin (or manager) sends a score update / half time / full time, with an optional alert to everyone
 //   DELETE /score  clear it once /ludham-update has turned it into the proper result
+//   POST /test   admin only: a test alert to James's own phone, to check the set-up
 // Settings in Cloudflare (never in this file):
 //   secrets  ONESIGNAL_KEY, ADMIN_HASH, MANAGER_HASH (sha-256 hex of "ludham-subs:" + that password in capitals)
 //   KV       SCORES (namespace binding)
@@ -31,7 +32,7 @@ async function who(pw, env) {
 async function push(env, msg) {
   const r = await fetch('https://api.onesignal.com/notifications', {
     method: 'POST',
-    headers: { Authorization: 'Key ' + env.ONESIGNAL_KEY, 'Content-Type': 'application/json' },
+    headers: { Authorization: 'Key ' + (env.ONESIGNAL_KEY || env.Onesignalkey), 'Content-Type': 'application/json' },   // saved as Onesignalkey in Cloudflare
     body: JSON.stringify({ app_id: APP_ID, target_channel: 'push', ...msg }),
   });
   return r.json().catch(() => ({}));
@@ -100,6 +101,14 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
     const path = new URL(req.url).pathname.replace(/\/+$/, '');
     if (path === '/score') return score(req, env);
+    if (path === '/test' && req.method === 'POST') {
+      let body;
+      try { body = await req.json(); } catch { return reply({ error: 'bad request' }, 400); }
+      if ((await who(body.pw, env)) !== 'admin') return reply({ error: 'not allowed' }, 403);
+      const j = await push(env, { filters: [{ field: 'tag', key: 'admin', relation: '=', value: '1' }],
+        headings: { en: 'Ludham FC (TEST)' }, contents: { en: 'Go-between test: score alerts are working ✓' }, url: SITE, name: 'hub-test' });
+      return reply({ alert: j.id ? 'sent' : 'error', detail: j.id ? undefined : j.errors });
+    }
     if (path === '/subs' && req.method === 'POST') {
       let body;
       try { body = await req.json(); } catch { return reply({ error: 'bad request' }, 400); }
