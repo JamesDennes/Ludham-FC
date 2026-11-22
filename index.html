@@ -1280,7 +1280,7 @@ function renderScore() {
   const g = { date: m.date, opponent: m.opponent, homeAway: m.homeAway };
   if (recent && m.date !== today) Object.assign(g, { date: recent.date, opponent: recent.opponent, homeAway: recent.homeAway });
   if (!g.date || !g.opponent) { el.innerHTML = `<h2 class="panel-title display">Score</h2><p class="empty">No game to send a score for.</p>`; return; }
-  let us = 0, them = 0, stage = "live";
+  let us = 0, them = 0, stage = "live", touched = false;
   el.innerHTML = `<h2 class="panel-title display">Score</h2>
     <p class="panel-sub serif">${esc(isAway(g.homeAway) ? `${g.opponent} v ${CLUB}` : `${CLUB} v ${g.opponent}`)} · ${esc(fmt(g.date, { weekday: "short", day: "numeric", month: "short" }))}</p>
     <div class="sc-row"><span class="nm">${esc(CLUB)}</span><span class="sc-step"><button type="button" data-sc="us,-1" aria-label="One fewer for ${esc(CLUB)}">−</button><b id="scUs">0</b><button type="button" data-sc="us,1" aria-label="One more for ${esc(CLUB)}">+</button></span></div>
@@ -1296,11 +1296,13 @@ function renderScore() {
     el.querySelectorAll("[data-stage]").forEach(b => b.classList.toggle("on", b.dataset.stage === stage));
   };
   el.querySelectorAll("[data-sc]").forEach(b => b.addEventListener("click", () => {
-    const [side, d] = b.dataset.sc.split(","); if (side === "us") us = Math.max(0, us + +d); else them = Math.max(0, them + +d); paint();
+    const [side, d] = b.dataset.sc.split(","); if (side === "us") us = Math.max(0, us + +d); else them = Math.max(0, them + +d); touched = true; paint();
   }));
-  el.querySelectorAll("[data-stage]").forEach(b => b.addEventListener("click", () => { stage = b.dataset.stage; paint(); }));
+  el.querySelectorAll("[data-stage]").forEach(b => b.addEventListener("click", () => { stage = b.dataset.stage; touched = true; paint(); }));
   const showNow = async () => {
     let s = null; try { s = await (await fetch(SCORE_URL, { cache: "no-store" })).json(); } catch (e) {}
+    // carry on from the last score sent for this game, so a new goal is just one tap
+    if (s && s.stage && s.date === g.date && !touched) { us = s.us; them = s.them; stage = s.stage === "ft" ? "ft" : "live"; paint(); }
     $("#scNow").innerHTML = s && s.stage
       ? `<div class="fine-row"><span class="name">${esc(s.stage === "ft" ? "Full time" : s.stage === "ht" ? "Half time" : "Live")}: ${esc(CLUB)} ${s.us}–${s.them} ${esc(s.opponent)}<small>sent ${esc(new Date(s.at).toLocaleString("en-GB", { weekday: "short", hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s(am|pm)$/i, "$1"))}</small></span><span></span><button type="button" class="linkbtn" id="scClear">Clear</button></div>`
       : `<p class="empty">${s ? "Nothing showing." : "Couldn't check just now."}</p>`;
