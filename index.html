@@ -1241,7 +1241,7 @@ function refreshPick() {
   $("#squadMsg").value = squadText();
   try { localStorage.setItem(PICK_KEY, JSON.stringify(pick)); } catch (e) {}
 }
-const HUB_URL = "";      // the Cloudflare go-between (Worker) address, ending in "/", once it's set up
+const HUB_URL = "https://ludham-hub.ludhamfc.workers.dev/";   // the Cloudflare go-between (Worker), see worker/ludham-hub.js
 const CHASE_ON = false;  // Chase subs for the manager: switch on once Ollie's agreed
 /* ---------- live score: sent from the admin Score tab through the go-between, shown above the Match tab ---------- */
 const SCORE_URL = HUB_URL ? HUB_URL + "score" : "";
