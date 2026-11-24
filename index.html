@@ -209,10 +209,11 @@
   footer { margin-top: 36px; padding: 16px 0 24px; border-top: 3px double var(--ink); text-align: center; }
   footer .who { font-family: Anton, Impact, sans-serif; font-size: 20px; letter-spacing: .06em; margin-top: 4px; }
   footer a { font-size: 16px; overflow-wrap: anywhere; }
-  .staff { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .staff { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
   .staff > div + div { border-left: 1px solid var(--rule); }
   .staff .caps { font-size: 10px; letter-spacing: .12em; }
-  .staff .who { font-size: 17px; line-height: 1.15; }
+  .staff .who { font-size: 17px; line-height: 1.15; overflow-wrap: anywhere; }
+  .staff > div { display: flex; flex-direction: column; align-items: center; padding: 0 8px; }
   @media (max-width: 340px) { .staff { grid-template-columns: 1fr; gap: 12px; } .staff > div + div { border-left: 0; } }
 
   /* Result rows are links to the match page */
@@ -607,9 +608,9 @@
 
   <footer>
     <div class="staff">
-      <div><div class="caps">Manager</div><div class="who">OLIVER BUTLER</div></div>
-      <div><div class="caps">The Chairman</div><div class="who">JOHN BUTLER</div></div>
-      <div><div class="caps">Assistant</div><div class="who">TERRY SMITH</div></div>
+      <div><div class="caps">Manager</div><div class="who">OLIVER<br>BUTLER</div></div>
+      <div><div class="caps">The Chairman</div><div class="who">JOHN<br>BUTLER</div></div>
+      <div><div class="caps">Assistant</div><div class="who">TERRY<br>SMITH</div></div>
     </div>
     <div class="foot-links">
       <button class="linkbtn" type="button" id="alertsLink" hidden>Turn on match alerts</button>
